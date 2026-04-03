@@ -1,0 +1,19 @@
+name: rich-life-finance-app
+description: Personal finance wellness app with guided onboarding, conscious spending plan, debt payoff calculator, credit health engine, AI coaching, and partner mode
+status: ready
+artifacts:
+  - id: proposal
+    type: proposal
+    outputPath: proposal.md
+    status: done
+  - id: design
+    type: design
+    outputPath: design.md
+    status: done
+    dependencies: [proposal]
+  - id: tasks
+    type: tasks
+    outputPath: tasks.md
+    status: done
+    dependencies: [proposal, design]
+applyRequires: [tasks]
