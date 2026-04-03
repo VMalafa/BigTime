@@ -13,6 +13,8 @@ import { CSPOverview } from "@/components/dashboard/CSPOverview";
 import { CreditHealthCard } from "@/components/dashboard/CreditHealthCard";
 import { AuthorQuote } from "@/components/shared/AuthorQuote";
 import { SavePrompt } from "@/components/shared/SavePrompt";
+import { AddPartnerPrompt } from "@/components/shared/AddPartnerPrompt";
+import { useAuth } from "@/lib/hooks/useAuth";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -106,11 +108,19 @@ export default function SummaryPage() {
     return general ?? quotes[0];
   }, [moneyType]);
 
+  const { isAuthenticated, loading: authLoading } = useAuth();
+
   const handleBack = () => {
     router.push("/flow/money-dials");
   };
 
   const sectionDelay = 0.1;
+
+  function AuthAwareCTA() {
+    if (authLoading) return null;
+    if (isAuthenticated) return <AddPartnerPrompt />;
+    return <SavePrompt />;
+  }
 
   return (
     <StepWrapper
@@ -292,13 +302,13 @@ export default function SummaryPage() {
           <AuthorQuote author={authorQuote.author} quote={authorQuote.quote} />
         </motion.section>
 
-        {/* Save Prompt */}
+        {/* Save Prompt / Add Partner */}
         <motion.section
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: sectionDelay * 7, duration: 0.4 }}
         >
-          <SavePrompt />
+          <AuthAwareCTA />
         </motion.section>
       </div>
 

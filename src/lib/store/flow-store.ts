@@ -61,6 +61,10 @@ interface FlowState {
   moneyDials: Record<DialCategory, number>;
   isComplete: boolean;
 
+  // Auth-aware persistence
+  _isAuthenticated: boolean;
+  _isHydrated: boolean;
+
   // Actions
   setCurrentStep: (step: number) => void;
   setScript: (promptId: number, response: string) => void;
@@ -76,6 +80,17 @@ interface FlowState {
   setComplete: (complete: boolean) => void;
   getTotalMonthlyIncome: () => number;
   reset: () => void;
+
+  // Hydration
+  hydrateFromDb: (data: {
+    scripts: Record<number, string>;
+    moneyType: MoneyType | null;
+    debts: DebtEntry[];
+    incomeSources: IncomeEntry[];
+    spendingPlan: SpendingPlanData | null;
+    moneyDials: Record<DialCategory, number>;
+  }) => void;
+  setAuthenticated: (isAuth: boolean) => void;
 }
 
 const initialDials: Record<DialCategory, number> = {
@@ -101,6 +116,8 @@ export const useFlowStore = create<FlowState>()(
       spendingPlan: null,
       moneyDials: { ...initialDials },
       isComplete: false,
+      _isAuthenticated: false,
+      _isHydrated: false,
 
       setCurrentStep: (step) => set({ currentStep: step }),
       setScript: (promptId, response) =>
@@ -158,9 +175,28 @@ export const useFlowStore = create<FlowState>()(
           moneyDials: { ...initialDials },
           isComplete: false,
         }),
+
+      hydrateFromDb: (data) =>
+        set({
+          scripts: data.scripts,
+          moneyType: data.moneyType,
+          debts: data.debts,
+          incomeSources: data.incomeSources,
+          spendingPlan: data.spendingPlan,
+          moneyDials: { ...initialDials, ...data.moneyDials },
+          _isHydrated: true,
+        }),
+      setAuthenticated: (isAuth) => set({ _isAuthenticated: isAuth }),
     }),
     {
       name: "rich-life-flow",
+      partialize: (state) => {
+        // Don't persist internal flags to localStorage
+        const { _isAuthenticated, _isHydrated, ...rest } = state;
+        void _isAuthenticated;
+        void _isHydrated;
+        return rest;
+      },
     }
   )
 );

@@ -1,11 +1,15 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useFlowStore } from "@/lib/store/flow-store";
+import { useAuth } from "@/lib/hooks/useAuth";
+import { getHouseholdFinancials } from "@/app/actions/household";
 import { WholenessScoreRing } from "@/components/dashboard/WholenessScoreRing";
 import { CSPOverview } from "@/components/dashboard/CSPOverview";
 import { CreditHealthCard } from "@/components/dashboard/CreditHealthCard";
 import { MonthlyCheckInPrompt } from "@/components/dashboard/MonthlyCheckInPrompt";
+import { AddPartnerPrompt } from "@/components/shared/AddPartnerPrompt";
 import { Card } from "@/components/ui/Card";
 import { formatCurrency, formatMonths } from "@/lib/utils/format";
 import Link from "next/link";
@@ -17,15 +21,41 @@ const defaultPlan = {
   guiltFreePercent: 25,
 };
 
+interface HouseholdData {
+  profiles: Array<{ id: string; name: string; moneyType: string | null }>;
+  totalDebt: number;
+  totalMinPayments: number;
+  totalMonthlyIncome: number;
+  debtCount: number;
+  debts: Array<{
+    balance: number;
+    debtType: string;
+    creditLimit?: number;
+  }>;
+  profileCount: number;
+}
+
 export default function DashboardPage() {
-  const debts = useFlowStore((s) => s.debts);
-  const spendingPlan = useFlowStore((s) => s.spendingPlan);
-  const getTotalMonthlyIncome = useFlowStore((s) => s.getTotalMonthlyIncome);
+  const { isAuthenticated, loading: authLoading } = useAuth();
+  const [household, setHousehold] = useState<HouseholdData | null>(null);
 
-  const totalIncome = getTotalMonthlyIncome() || 5000;
-  const plan = spendingPlan ?? defaultPlan;
+  // Fallback to local store for unauthenticated (shouldn't reach dashboard, but safe)
+  const localDebts = useFlowStore((s) => s.debts);
+  const localPlan = useFlowStore((s) => s.spendingPlan);
+  const localGetIncome = useFlowStore((s) => s.getTotalMonthlyIncome);
 
-  const totalDebt = debts.reduce((sum, d) => sum + d.balance, 0);
+  useEffect(() => {
+    if (!authLoading && isAuthenticated) {
+      getHouseholdFinancials().then(setHousehold);
+    }
+  }, [isAuthenticated, authLoading]);
+
+  // Use household data if available, fall back to local store
+  const debts = household?.debts ?? localDebts;
+  const totalDebt = household?.totalDebt ?? debts.reduce((sum, d) => sum + d.balance, 0);
+  const totalIncome = household?.totalMonthlyIncome || localGetIncome() || 5000;
+  const plan = localPlan ?? defaultPlan;
+
   const revolvingDebts = debts.filter(
     (d) => d.debtType === "CREDIT_CARD" || d.debtType === "OTHER_REVOLVING"
   );
@@ -51,10 +81,13 @@ export default function DashboardPage() {
           ? "acceptable"
           : "high";
 
-  // Rough payoff estimate: total debt / total min payments per month
-  const totalMinPayments = debts.reduce((sum, d) => sum + d.minimumPayment, 0);
+  const totalMinPayments =
+    household?.totalMinPayments ??
+    localDebts.reduce((sum, d) => sum + d.minimumPayment, 0);
   const estimatedPayoffMonths =
     totalMinPayments > 0 ? Math.ceil(totalDebt / totalMinPayments) : 0;
+
+  const isSoloHousehold = (household?.profileCount ?? 1) === 1;
 
   return (
     <div>
@@ -108,7 +141,7 @@ export default function DashboardPage() {
             <div className="space-y-3">
               <div className="flex items-baseline justify-between">
                 <span className="text-text-secondary text-sm font-sans">
-                  Total Debt
+                  Total Household Debt
                 </span>
                 <span className="font-serif text-2xl text-text-primary">
                   {formatCurrency(totalDebt)}
@@ -154,6 +187,13 @@ export default function DashboardPage() {
         <div className="md:col-span-2">
           <MonthlyCheckInPrompt />
         </div>
+
+        {/* Add Partner Prompt (for solo households) */}
+        {isAuthenticated && isSoloHousehold && (
+          <div className="md:col-span-2">
+            <AddPartnerPrompt />
+          </div>
+        )}
       </div>
     </div>
   );

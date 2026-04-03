@@ -13,20 +13,27 @@ model User {
   name            String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
-  moneyType       MoneyType?
-  moneyScripts    MoneyScript[]
-  debts           Debt[]
-  incomeSources   IncomeSource[]
-  spendingPlan    SpendingPlan?
-  moneyDials      MoneyDial[]
+  profiles        Profile[]
   wholenessScore  WholenessScore?
   automationItems AutomationItem[]
   checkIns        CheckIn[]
-  partnershipA    Partnership?  @relation("partnerA")
-  partnershipB    Partnership?  @relation("partnerB")
-  partnerInvitesSent     PartnerInvite[] @relation("inviteSender")
-  partnerInvitesReceived PartnerInvite[] @relation("inviteRecipient")
-  privacySettings PrivacySettings?
+}
+
+model Profile {
+  id             String          @id @default(uuid())
+  userId         String
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name           String
+  isDefault      Boolean         @default(false)
+  moneyType      MoneyType?
+  moneyScripts   MoneyScript[]
+  debts          Debt[]
+  incomeSources  IncomeSource[]
+  spendingPlan   SpendingPlan?
+  moneyDials     MoneyDial[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  @@index([userId])
 }
 
 enum MoneyType {
@@ -37,21 +44,21 @@ enum MoneyType {
 }
 
 model MoneyScript {
-  id        String   @id @default(uuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  promptId  Int
-  response  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(uuid())
+  profileId    String
+  profile      Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  promptId     Int
+  response     String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
   aiReflection String?
-  @@unique([userId, promptId])
+  @@unique([profileId, promptId])
 }
 
 model Debt {
   id             String    @id @default(uuid())
-  userId         String
-  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profileId      String
+  profile        Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
   name           String
   balance        Decimal   @db.Decimal(12, 2)
   apr            Decimal   @db.Decimal(5, 3)
@@ -61,7 +68,7 @@ model Debt {
   isShared       Boolean   @default(false)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
-  @@index([userId])
+  @@index([profileId])
 }
 
 enum DebtType {
@@ -77,20 +84,20 @@ enum DebtType {
 
 model IncomeSource {
   id            String   @id @default(uuid())
-  userId        String
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profileId     String
+  profile       Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
   name          String
   monthlyAmount Decimal  @db.Decimal(12, 2)
   isAfterTax    Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
-  @@index([userId])
+  @@index([profileId])
 }
 
 model SpendingPlan {
   id                   String   @id @default(uuid())
-  userId               String   @unique
-  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profileId            String   @unique
+  profile              Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
   fixedCostsPercent    Int
   savingsPercent       Int
   investmentsPercent   Int
@@ -100,14 +107,14 @@ model SpendingPlan {
 }
 
 model MoneyDial {
-  id        String   @id @default(uuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String       @id @default(uuid())
+  profileId String
+  profile   Profile      @relation(fields: [profileId], references: [id], onDelete: Cascade)
   category  DialCategory
   level     Int
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  @@unique([userId, category])
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  @@unique([profileId, category])
 }
 
 enum DialCategory {
@@ -174,98 +181,4 @@ model CheckIn {
   aiSummary       String?
   createdAt       DateTime @default(now())
   @@unique([userId, month])
-}
-
-model PartnerInvite {
-  id          String       @id @default(uuid())
-  senderId    String
-  sender      User         @relation("inviteSender", fields: [senderId], references: [id])
-  recipientId String?
-  recipient   User?        @relation("inviteRecipient", fields: [recipientId], references: [id])
-  email       String
-  status      InviteStatus @default(PENDING)
-  createdAt   DateTime     @default(now())
-  expiresAt   DateTime
-  @@index([email])
-}
-
-enum InviteStatus {
-  PENDING
-  ACCEPTED
-  DECLINED
-  EXPIRED
-}
-
-model Partnership {
-  id              String   @id @default(uuid())
-  partnerAId      String   @unique
-  partnerA        User     @relation("partnerA", fields: [partnerAId], references: [id])
-  partnerBId      String   @unique
-  partnerB        User     @relation("partnerB", fields: [partnerBId], references: [id])
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  unlinkedAt      DateTime?
-  onboardingStep  Int      @default(0)
-  richLifeVision  RichLifeVision?
-  moneyRules      MoneyRule[]
-  jointPlan       JointSpendingPlan?
-  @@index([partnerAId])
-  @@index([partnerBId])
-}
-
-model RichLifeVision {
-  id              String      @id @default(uuid())
-  partnershipId   String      @unique
-  partnership     Partnership @relation(fields: [partnershipId], references: [id], onDelete: Cascade)
-  partnerAVision  Json
-  partnerBVision  Json
-  sharedVision    String?
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
-}
-
-model MoneyRule {
-  id              String      @id @default(uuid())
-  partnershipId   String
-  partnership     Partnership @relation(fields: [partnershipId], references: [id], onDelete: Cascade)
-  ruleText        String
-  ruleType        RuleType
-  agreedByA       Boolean     @default(false)
-  agreedByB       Boolean     @default(false)
-  createdAt       DateTime    @default(now())
-  @@index([partnershipId])
-}
-
-enum RuleType {
-  SPENDING_THRESHOLD
-  REVIEW_CADENCE
-  PERSONAL_ALLOWANCE
-  PRIORITY
-  CREDIT_USAGE
-  CUSTOM
-}
-
-model JointSpendingPlan {
-  id                       String      @id @default(uuid())
-  partnershipId            String      @unique
-  partnership              Partnership @relation(fields: [partnershipId], references: [id], onDelete: Cascade)
-  totalHouseholdIncome     Decimal     @db.Decimal(12, 2)
-  partnerAPersonalAmount   Decimal     @db.Decimal(10, 2)
-  partnerBPersonalAmount   Decimal     @db.Decimal(10, 2)
-  jointFixedCostsPercent   Int
-  jointSavingsPercent      Int
-  jointInvestmentsPercent  Int
-  jointGuiltFreePercent    Int
-  createdAt                DateTime    @default(now())
-  updatedAt                DateTime    @updatedAt
-}
-
-model PrivacySettings {
-  id                   String  @id @default(uuid())
-  userId               String  @unique
-  user                 User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  shareScripts         Boolean @default(false)
-  shareIndividualDebts Boolean @default(false)
-  shareIncomeDetail    Boolean @default(false)
-  shareMoneyDials      Boolean @default(false)
 }

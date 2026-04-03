@@ -86,9 +86,9 @@ export default function Home() {
             <Link href="/flow">
               <Button size="lg">Start Your Rich Life</Button>
             </Link>
-            <Link href="/calculator">
+            <Link href="/auth/signup?redirectTo=/flow">
               <Button variant="secondary" size="lg">
-                Debt Payoff Calculator
+                Sign Up to Save Progress
               </Button>
             </Link>
           </motion.div>

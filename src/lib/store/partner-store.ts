@@ -1,3 +1,6 @@
+// TODO: This store uses the old Partnership model with localStorage.
+// It should be refactored to use the new Profile-based household model
+// with DB persistence via server actions. See household-auth change.
 "use client";
 
 import { create } from "zustand";

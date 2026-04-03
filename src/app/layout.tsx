@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { AppHeader } from "@/components/shared/AppHeader";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -27,6 +28,7 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-full flex flex-col bg-bg-primary text-text-primary font-sans">
+        <AppHeader />
         {children}
       </body>
     </html>
