@@ -1,0 +1,74 @@
+@import "tailwindcss";
+
+:root {
+  --bg-primary: #FAF7F2;
+  --bg-secondary: #F3EDE4;
+  --text-primary: #3D2B1F;
+  --text-secondary: #6B5744;
+  --accent-gold: #C4A265;
+  --accent-gold-light: #D4B87A;
+  --cat-green: #4A6741;
+  --cat-blue: #5B7B8A;
+  --cat-terra: #B56B4A;
+  --cat-plum: #7B5E7B;
+  --success: #5A8A5A;
+  --warning: #C4944A;
+  --error: #B55A5A;
+  --white: #FFFFFF;
+  --shadow-warm: rgba(61, 43, 31, 0.08);
+}
+
+@theme inline {
+  --color-bg-primary: var(--bg-primary);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-accent-gold: var(--accent-gold);
+  --color-accent-gold-light: var(--accent-gold-light);
+  --color-cat-green: var(--cat-green);
+  --color-cat-blue: var(--cat-blue);
+  --color-cat-terra: var(--cat-terra);
+  --color-cat-plum: var(--cat-plum);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-error: var(--error);
+  --font-sans: "DM Sans", system-ui, -apple-system, sans-serif;
+  --font-serif: "Playfair Display", Georgia, serif;
+}
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: "DM Sans", system-ui, -apple-system, sans-serif;
+}
+
+/* Focus ring styles */
+*:focus-visible {
+  outline: 2px solid var(--accent-gold);
+  outline-offset: 2px;
+}
+
+/* Warm scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--accent-gold);
+  border-radius: 4px;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

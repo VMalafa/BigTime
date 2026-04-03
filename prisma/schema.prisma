@@ -1,0 +1,271 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String    @id @default(uuid())
+  email           String    @unique
+  name            String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  moneyType       MoneyType?
+  moneyScripts    MoneyScript[]
+  debts           Debt[]
+  incomeSources   IncomeSource[]
+  spendingPlan    SpendingPlan?
+  moneyDials      MoneyDial[]
+  wholenessScore  WholenessScore?
+  automationItems AutomationItem[]
+  checkIns        CheckIn[]
+  partnershipA    Partnership?  @relation("partnerA")
+  partnershipB    Partnership?  @relation("partnerB")
+  partnerInvitesSent     PartnerInvite[] @relation("inviteSender")
+  partnerInvitesReceived PartnerInvite[] @relation("inviteRecipient")
+  privacySettings PrivacySettings?
+}
+
+enum MoneyType {
+  OPTIMIZER
+  AVOIDER
+  WORRIER
+  DREAMER
+}
+
+model MoneyScript {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  promptId  Int
+  response  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  aiReflection String?
+  @@unique([userId, promptId])
+}
+
+model Debt {
+  id             String    @id @default(uuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name           String
+  balance        Decimal   @db.Decimal(12, 2)
+  apr            Decimal   @db.Decimal(5, 3)
+  minimumPayment Decimal   @db.Decimal(10, 2)
+  debtType       DebtType
+  creditLimit    Decimal?  @db.Decimal(12, 2)
+  isShared       Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  @@index([userId])
+}
+
+enum DebtType {
+  CREDIT_CARD
+  PERSONAL_LOAN
+  STUDENT_LOAN
+  AUTO_LOAN
+  MORTGAGE
+  MEDICAL
+  OTHER_REVOLVING
+  OTHER_INSTALLMENT
+}
+
+model IncomeSource {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name          String
+  monthlyAmount Decimal  @db.Decimal(12, 2)
+  isAfterTax    Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  @@index([userId])
+}
+
+model SpendingPlan {
+  id                   String   @id @default(uuid())
+  userId               String   @unique
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fixedCostsPercent    Int
+  savingsPercent       Int
+  investmentsPercent   Int
+  guiltFreePercent     Int
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+model MoneyDial {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category  DialCategory
+  level     Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([userId, category])
+}
+
+enum DialCategory {
+  TRAVEL
+  FOOD_DINING
+  HEALTH_FITNESS
+  CONVENIENCE
+  TECHNOLOGY
+  FASHION
+  EXPERIENCES
+  EDUCATION
+  GIVING
+}
+
+model WholenessScore {
+  id                  String   @id @default(uuid())
+  userId              String   @unique
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  budgetScore         Int      @default(0)
+  saveScore           Int      @default(0)
+  debtScore           Int      @default(0)
+  creditScore         Int      @default(0)
+  incomeScore         Int      @default(0)
+  retirementScore     Int      @default(0)
+  wealthScore         Int      @default(0)
+  insuranceScore      Int      @default(0)
+  netWorthScore       Int      @default(0)
+  legacyScore         Int      @default(0)
+  totalScore          Int      @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model AutomationItem {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  isCompleted Boolean  @default(false)
+  category    AutomationCategory
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  @@index([userId])
+}
+
+enum AutomationCategory {
+  BILL_PAY
+  SAVINGS_TRANSFER
+  INVESTMENT_TRANSFER
+  CREDIT_PROTECTION
+  CREDIT_MONITORING
+}
+
+model CheckIn {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  month           DateTime
+  wentWell        String?
+  feltHard        String?
+  toAdjust        String?
+  creditWins      String?
+  aiSummary       String?
+  createdAt       DateTime @default(now())
+  @@unique([userId, month])
+}
+
+model PartnerInvite {
+  id          String       @id @default(uuid())
+  senderId    String
+  sender      User         @relation("inviteSender", fields: [senderId], references: [id])
+  recipientId String?
+  recipient   User?        @relation("inviteRecipient", fields: [recipientId], references: [id])
+  email       String
+  status      InviteStatus @default(PENDING)
+  createdAt   DateTime     @default(now())
+  expiresAt   DateTime
+  @@index([email])
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+model Partnership {
+  id              String   @id @default(uuid())
+  partnerAId      String   @unique
+  partnerA        User     @relation("partnerA", fields: [partnerAId], references: [id])
+  partnerBId      String   @unique
+  partnerB        User     @relation("partnerB", fields: [partnerBId], references: [id])
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  unlinkedAt      DateTime?
+  onboardingStep  Int      @default(0)
+  richLifeVision  RichLifeVision?
+  moneyRules      MoneyRule[]
+  jointPlan       JointSpendingPlan?
+  @@index([partnerAId])
+  @@index([partnerBId])
+}
+
+model RichLifeVision {
+  id              String      @id @default(uuid())
+  partnershipId   String      @unique
+  partnership     Partnership @relation(fields: [partnershipId], references: [id], onDelete: Cascade)
+  partnerAVision  Json
+  partnerBVision  Json
+  sharedVision    String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
+model MoneyRule {
+  id              String      @id @default(uuid())
+  partnershipId   String
+  partnership     Partnership @relation(fields: [partnershipId], references: [id], onDelete: Cascade)
+  ruleText        String
+  ruleType        RuleType
+  agreedByA       Boolean     @default(false)
+  agreedByB       Boolean     @default(false)
+  createdAt       DateTime    @default(now())
+  @@index([partnershipId])
+}
+
+enum RuleType {
+  SPENDING_THRESHOLD
+  REVIEW_CADENCE
+  PERSONAL_ALLOWANCE
+  PRIORITY
+  CREDIT_USAGE
+  CUSTOM
+}
+
+model JointSpendingPlan {
+  id                       String      @id @default(uuid())
+  partnershipId            String      @unique
+  partnership              Partnership @relation(fields: [partnershipId], references: [id], onDelete: Cascade)
+  totalHouseholdIncome     Decimal     @db.Decimal(12, 2)
+  partnerAPersonalAmount   Decimal     @db.Decimal(10, 2)
+  partnerBPersonalAmount   Decimal     @db.Decimal(10, 2)
+  jointFixedCostsPercent   Int
+  jointSavingsPercent      Int
+  jointInvestmentsPercent  Int
+  jointGuiltFreePercent    Int
+  createdAt                DateTime    @default(now())
+  updatedAt                DateTime    @updatedAt
+}
+
+model PrivacySettings {
+  id                   String  @id @default(uuid())
+  userId               String  @unique
+  user                 User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shareScripts         Boolean @default(false)
+  shareIndividualDebts Boolean @default(false)
+  shareIncomeDetail    Boolean @default(false)
+  shareMoneyDials      Boolean @default(false)
+}
