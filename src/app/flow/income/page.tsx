@@ -16,8 +16,8 @@ export default function IncomePage() {
   const totalIncome = getTotalMonthlyIncome();
 
   function handleNext() {
-    setCurrentStep(4);
-    router.push("/flow/spending-plan");
+    setCurrentStep(3);
+    router.push("/flow/fixed-costs");
   }
 
   function handleBack() {

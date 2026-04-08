@@ -10,7 +10,11 @@ interface CSPOverviewProps {
   totalIncome: number;
 }
 
-const bucketKeys: { key: CSPBucket; planKey: keyof SpendingPlanData }[] = [
+type SpendingPlanPercentKey = {
+  [K in keyof SpendingPlanData]: SpendingPlanData[K] extends number ? K : never;
+}[keyof SpendingPlanData];
+
+const bucketKeys: { key: CSPBucket; planKey: SpendingPlanPercentKey }[] = [
   { key: "fixedCosts", planKey: "fixedCostsPercent" },
   { key: "savings", planKey: "savingsPercent" },
   { key: "investments", planKey: "investmentsPercent" },

@@ -19,6 +19,8 @@ const defaultPlan = {
   savingsPercent: 10,
   investmentsPercent: 10,
   guiltFreePercent: 25,
+  fixedCostLineItems: [],
+  fixedCostsOverridden: false,
 };
 
 interface HouseholdData {
