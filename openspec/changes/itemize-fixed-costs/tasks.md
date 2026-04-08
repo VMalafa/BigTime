@@ -69,3 +69,17 @@
 
 - [x] 9.1 Searched the repo for "6 flow steps", "six-step", and similar phrases — no hits. The only source-of-truth for the step count is `FLOW_STEPS` itself, which is now authoritative. Nothing else to update.
 - [x] 9.2 Searched the repo for internal README/design docs referencing `fixedCostsPercent` — only the existing `csp-ranges.ts` (updated) and `proposal.md` / `design.md` / `spec.md` / `tasks.md` in this change itself (which already document the new "suggested vs. overridden" behavior). README.md is the Next.js boilerplate and has no flow references.
+
+## 10. Auto-include debt minimum payments (scope refinement)
+
+User feedback during implementation: "The minimum debt payment calculated from original debt loading should be included in that fixed cost." Rationale and design captured in `design.md` Decision 7 and `specs/itemized-fixed-costs/spec.md` (updated "Derived suggested Fixed Costs percentage" requirement + new "Automatic inclusion of debt minimum payments" requirement).
+
+- [x] 10.1 Add `computeSuggestedPercent(plan, totalIncome, debtMinimumsTotal)` + updated `syncSuggestedPercent` in `src/lib/store/flow-store.ts`
+- [x] 10.2 Add new store selectors `getDebtMinimumsTotal()` and `getFixedCostsLineItemsTotal()`, and fold `sum(debts[].minimumPayment)` into `getFixedCostsTotalMonthly`, `getSuggestedFixedCostsPercent`, and `getRemainingDiscretionaryMonthly`
+- [x] 10.3 Hook `addDebt` / `updateDebt` / `removeDebt` into `syncSuggestedPercent` so editing debts after the plan is set still re-syncs the suggested Fixed Costs % (unless overridden)
+- [x] 10.4 Fall back to an `emptySpendingPlan()` in `getSuggestedFixedCostsPercent` when `spendingPlan` is null, so users with debts but no plan yet still see a non-zero suggested %
+- [x] 10.5 Extend `RealityCheckCard` with optional `lineItemsTotal` and `debtMinimumsTotal` props; render a "$X line items + $Y debt minimums" sub-line under "Total fixed commitments" when debt minimums > 0
+- [x] 10.6 Add an "Included automatically" card on the Fixed Costs page that surfaces the debt minimums total (only when > 0) with guidance to edit on the Debts step
+- [x] 10.7 Pass the new breakdown props through from `/flow/fixed-costs` and `/flow/spending-plan` pages to `RealityCheckCard`
+- [x] 10.8 Update spec scenarios: add "User has line items and debt minimums", "User has debt minimums but no manual line items yet", "User removes a debt after the plan is set", "Reality Check breakdown when debt minimums are present", and new "Automatic inclusion of debt minimum payments" requirement with matching scenarios
+- [x] 10.9 Re-run `npm run lint` and `npm run build` — no new errors, build compiles, `/flow/fixed-costs` still in the route manifest

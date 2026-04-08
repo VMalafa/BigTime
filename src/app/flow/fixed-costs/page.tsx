@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
 import { StepWrapper } from "@/components/flow/StepWrapper";
 import { FlowNavigation } from "@/components/flow/FlowNavigation";
 import { FixedCostForm } from "@/components/flow/FixedCostForm";
@@ -11,13 +12,17 @@ import {
   useFlowStore,
   type FixedCostLineItem,
 } from "@/lib/store/flow-store";
+import { formatCurrency } from "@/lib/utils/format";
 
 export default function FixedCostsPage() {
   const router = useRouter();
   const {
     spendingPlan,
+    debts,
     setCurrentStep,
     getTotalMonthlyIncome,
+    getDebtMinimumsTotal,
+    getFixedCostsLineItemsTotal,
     getFixedCostsTotalMonthly,
     getSuggestedFixedCostsPercent,
   } = useFlowStore();
@@ -26,6 +31,8 @@ export default function FixedCostsPage() {
 
   const items = spendingPlan?.fixedCostLineItems ?? [];
   const totalIncome = getTotalMonthlyIncome();
+  const debtMinimumsTotal = getDebtMinimumsTotal();
+  const lineItemsTotal = getFixedCostsLineItemsTotal();
   const totalFixedCosts = getFixedCostsTotalMonthly();
   const derivedPercent = getSuggestedFixedCostsPercent();
 
@@ -44,6 +51,34 @@ export default function FixedCostsPage() {
       subtitle="List the monthly bills you have to pay. We'll use this to suggest a Fixed Costs bucket on the next step."
     >
       <div className="space-y-8">
+        {debtMinimumsTotal > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className="rounded-lg border border-accent-gold/30 bg-accent-gold/5 p-4"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-serif text-base text-text-primary">
+                  Included automatically
+                </p>
+                <p className="text-sm text-text-secondary mt-0.5">
+                  {debts.length} debt minimum payment
+                  {debts.length === 1 ? "" : "s"} from your Debts step. Edit
+                  them there — no need to re-enter below.
+                </p>
+              </div>
+              <p className="text-lg font-semibold text-text-primary whitespace-nowrap">
+                {formatCurrency(debtMinimumsTotal)}
+                <span className="text-sm font-normal text-text-secondary">
+                  /mo
+                </span>
+              </p>
+            </div>
+          </motion.div>
+        )}
+
         <FixedCostForm
           key={editing?.id ?? "new"}
           editing={editing}
@@ -56,6 +91,8 @@ export default function FixedCostsPage() {
           totalIncome={totalIncome}
           totalFixedCosts={totalFixedCosts}
           derivedPercent={derivedPercent}
+          lineItemsTotal={lineItemsTotal}
+          debtMinimumsTotal={debtMinimumsTotal}
         />
 
         <FlowNavigation

@@ -35,15 +35,42 @@ The system SHALL allow users to add, edit, remove, and reorder fixed-cost line i
 - **THEN** the `sortOrder` field of each affected item updates and the list persists in the new order
 
 ### Requirement: Derived suggested Fixed Costs percentage
-The system SHALL compute a suggested Fixed Costs percentage as `round(sum(fixedCostLineItems.monthlyAmount) / totalMonthlyIncome * 100)`. When `totalMonthlyIncome` is 0, the suggested percentage SHALL be 0. The suggested value SHALL be exposed as a store selector and recomputed whenever line items or income change.
+The system SHALL compute a suggested Fixed Costs percentage as `round((sum(fixedCostLineItems.monthlyAmount) + sum(debts[].minimumPayment)) / totalMonthlyIncome * 100)`. Minimum debt payments captured on the Debts step SHALL be automatically included in the numerator so users never need to re-enter them as line items. When `totalMonthlyIncome` is 0, the suggested percentage SHALL be 0. The suggested value SHALL be exposed as a store selector and recomputed whenever line items, debts, or income change.
 
 #### Scenario: User has line items totaling 3500 against 7000 income
-- **WHEN** the user has entered line items summing to $3,500 and a total monthly income of $7,000
+- **WHEN** the user has entered line items summing to $3,500, no debts, and a total monthly income of $7,000
 - **THEN** the suggested Fixed Costs percentage is 50
+
+#### Scenario: User has line items and debt minimums
+- **WHEN** the user has entered line items summing to $3,000, debts with combined minimum payments of $500, and a total monthly income of $7,000
+- **THEN** the suggested Fixed Costs percentage is 50 (computed from $3,500 / $7,000)
+
+#### Scenario: User has debt minimums but no manual line items yet
+- **WHEN** the user arrives on the Fixed Costs step after adding debts totaling $500/mo in minimums, with $7,000 total monthly income, and has not yet added any line items
+- **THEN** the suggested Fixed Costs percentage is 7 and the Reality Check shows $500 already counted toward fixed commitments
+
+#### Scenario: User removes a debt after the plan is set
+- **WHEN** the user returns to the Debts step and removes a debt with a $200 minimum payment, while the Fixed Costs slider has not been manually overridden
+- **THEN** the suggested Fixed Costs percentage recomputes immediately and the Spending Plan slider reflects the new (lower) value
 
 #### Scenario: User has line items but no income yet
 - **WHEN** the user has entered line items but total monthly income is 0
 - **THEN** the suggested Fixed Costs percentage is 0 and the UI explains that income is required to compute a percentage
+
+### Requirement: Automatic inclusion of debt minimum payments
+The Fixed Costs step SHALL surface the sum of all debt minimum payments (captured on the Debts step) as a separate "Included automatically" summary above the manual line-item list, so users can see the number without re-entering it. The summary SHALL hide when there are no debts. Debt minimum payments SHALL NOT be added as `FixedCostLineItem` rows — the Debts step remains the single source of truth for debt data.
+
+#### Scenario: User with debts lands on Fixed Costs step
+- **WHEN** a user who previously entered three debts with a combined $650/mo in minimum payments lands on `/flow/fixed-costs`
+- **THEN** an "Included automatically" card at the top of the page shows "$650/mo" and a note that the amounts come from the Debts step
+
+#### Scenario: User with no debts lands on Fixed Costs step
+- **WHEN** a user with zero debts lands on `/flow/fixed-costs`
+- **THEN** the "Included automatically" card is not rendered
+
+#### Scenario: Reality Check breakdown when debt minimums are present
+- **WHEN** the Fixed Costs page renders for a user with $2,000 in line items and $500 in debt minimums
+- **THEN** the Reality Check card shows total fixed commitments of $2,500 with a breakdown line "$2,000 line items + $500 debt minimums"
 
 ### Requirement: Pre-seed Spending Plan slider with suggested value
 When the user first lands on `/flow/spending-plan` after entering line items, the Fixed Costs slider SHALL be pre-seeded with the suggested value. The slider SHALL remain editable. Subsequent changes to line items SHALL continue to update the slider ONLY while the user has not manually overridden it.

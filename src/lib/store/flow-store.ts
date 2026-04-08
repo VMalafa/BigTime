@@ -96,6 +96,8 @@ interface FlowState {
   setMoneyDial: (category: DialCategory, level: number) => void;
   setComplete: (complete: boolean) => void;
   getTotalMonthlyIncome: () => number;
+  getDebtMinimumsTotal: () => number;
+  getFixedCostsLineItemsTotal: () => number;
   getFixedCostsTotalMonthly: () => number;
   getSuggestedFixedCostsPercent: () => number;
   getRemainingDiscretionaryMonthly: () => number;
@@ -150,20 +152,29 @@ function normalizeSpendingPlan(
   };
 }
 
-function computeSuggestedPercent(plan: SpendingPlanData, totalIncome: number): number {
+function computeSuggestedPercent(
+  plan: SpendingPlanData,
+  totalIncome: number,
+  debtMinimumsTotal: number
+): number {
   if (totalIncome <= 0) return 0;
-  const total = plan.fixedCostLineItems.reduce((s, i) => s + i.monthlyAmount, 0);
-  return Math.round((total / totalIncome) * 100);
+  const lineItemsTotal = plan.fixedCostLineItems.reduce(
+    (s, i) => s + i.monthlyAmount,
+    0
+  );
+  return Math.round(((lineItemsTotal + debtMinimumsTotal) / totalIncome) * 100);
 }
 
-// After any line-item mutation, if the user has not overridden Fixed Costs,
-// keep `fixedCostsPercent` in sync with the freshly-derived suggested value.
+// After any mutation that affects fixed costs (line items OR debt entries),
+// if the user has not overridden Fixed Costs, keep `fixedCostsPercent` in sync
+// with the freshly-derived suggested value.
 function syncSuggestedPercent(
   plan: SpendingPlanData,
-  totalIncome: number
+  totalIncome: number,
+  debtMinimumsTotal: number
 ): SpendingPlanData {
   if (plan.fixedCostsOverridden) return plan;
-  const suggested = computeSuggestedPercent(plan, totalIncome);
+  const suggested = computeSuggestedPercent(plan, totalIncome, debtMinimumsTotal);
   if (suggested === plan.fixedCostsPercent) return plan;
   return { ...plan, fixedCostsPercent: suggested };
 }
@@ -189,17 +200,70 @@ export const useFlowStore = create<FlowState>()(
         })),
       setMoneyType: (type) => set({ moneyType: type }),
       addDebt: (debt) =>
-        set((state) => ({ debts: [...state.debts, debt] })),
+        set((state) => {
+          const nextDebts = [...state.debts, debt];
+          if (!state.spendingPlan) return { debts: nextDebts };
+          const totalIncome = state.incomeSources.reduce(
+            (s, i) => s + i.monthlyAmount,
+            0
+          );
+          const debtMinimums = nextDebts.reduce(
+            (s, d) => s + d.minimumPayment,
+            0
+          );
+          return {
+            debts: nextDebts,
+            spendingPlan: syncSuggestedPercent(
+              state.spendingPlan,
+              totalIncome,
+              debtMinimums
+            ),
+          };
+        }),
       updateDebt: (id, updates) =>
-        set((state) => ({
-          debts: state.debts.map((d) =>
+        set((state) => {
+          const nextDebts = state.debts.map((d) =>
             d.id === id ? { ...d, ...updates } : d
-          ),
-        })),
+          );
+          if (!state.spendingPlan) return { debts: nextDebts };
+          const totalIncome = state.incomeSources.reduce(
+            (s, i) => s + i.monthlyAmount,
+            0
+          );
+          const debtMinimums = nextDebts.reduce(
+            (s, d) => s + d.minimumPayment,
+            0
+          );
+          return {
+            debts: nextDebts,
+            spendingPlan: syncSuggestedPercent(
+              state.spendingPlan,
+              totalIncome,
+              debtMinimums
+            ),
+          };
+        }),
       removeDebt: (id) =>
-        set((state) => ({
-          debts: state.debts.filter((d) => d.id !== id),
-        })),
+        set((state) => {
+          const nextDebts = state.debts.filter((d) => d.id !== id);
+          if (!state.spendingPlan) return { debts: nextDebts };
+          const totalIncome = state.incomeSources.reduce(
+            (s, i) => s + i.monthlyAmount,
+            0
+          );
+          const debtMinimums = nextDebts.reduce(
+            (s, d) => s + d.minimumPayment,
+            0
+          );
+          return {
+            debts: nextDebts,
+            spendingPlan: syncSuggestedPercent(
+              state.spendingPlan,
+              totalIncome,
+              debtMinimums
+            ),
+          };
+        }),
       addIncome: (income) =>
         set((state) => ({
           incomeSources: [...state.incomeSources, income],
@@ -224,10 +288,15 @@ export const useFlowStore = create<FlowState>()(
             (s, i) => s + i.monthlyAmount,
             0
           );
+          const debtMinimums = state.debts.reduce(
+            (s, d) => s + d.minimumPayment,
+            0
+          );
           return {
             spendingPlan: syncSuggestedPercent(
               { ...base, fixedCostLineItems: nextItems },
-              totalIncome
+              totalIncome,
+              debtMinimums
             ),
           };
         }),
@@ -241,10 +310,15 @@ export const useFlowStore = create<FlowState>()(
             (s, i) => s + i.monthlyAmount,
             0
           );
+          const debtMinimums = state.debts.reduce(
+            (s, d) => s + d.minimumPayment,
+            0
+          );
           return {
             spendingPlan: syncSuggestedPercent(
               { ...state.spendingPlan, fixedCostLineItems: nextItems },
-              totalIncome
+              totalIncome,
+              debtMinimums
             ),
           };
         }),
@@ -258,10 +332,15 @@ export const useFlowStore = create<FlowState>()(
             (s, i) => s + i.monthlyAmount,
             0
           );
+          const debtMinimums = state.debts.reduce(
+            (s, d) => s + d.minimumPayment,
+            0
+          );
           return {
             spendingPlan: syncSuggestedPercent(
               { ...state.spendingPlan, fixedCostLineItems: nextItems },
-              totalIncome
+              totalIncome,
+              debtMinimums
             ),
           };
         }),
@@ -303,7 +382,11 @@ export const useFlowStore = create<FlowState>()(
           0
         );
       },
-      getFixedCostsTotalMonthly: () => {
+      getDebtMinimumsTotal: () => {
+        const state = get();
+        return state.debts.reduce((sum, d) => sum + d.minimumPayment, 0);
+      },
+      getFixedCostsLineItemsTotal: () => {
         const plan = get().spendingPlan;
         if (!plan) return 0;
         return plan.fixedCostLineItems.reduce(
@@ -311,14 +394,35 @@ export const useFlowStore = create<FlowState>()(
           0
         );
       },
+      getFixedCostsTotalMonthly: () => {
+        const state = get();
+        const lineItemsTotal = state.spendingPlan
+          ? state.spendingPlan.fixedCostLineItems.reduce(
+              (sum, i) => sum + i.monthlyAmount,
+              0
+            )
+          : 0;
+        const debtMinimums = state.debts.reduce(
+          (sum, d) => sum + d.minimumPayment,
+          0
+        );
+        return lineItemsTotal + debtMinimums;
+      },
       getSuggestedFixedCostsPercent: () => {
         const state = get();
-        if (!state.spendingPlan) return 0;
         const totalIncome = state.incomeSources.reduce(
           (s, i) => s + i.monthlyAmount,
           0
         );
-        return computeSuggestedPercent(state.spendingPlan, totalIncome);
+        const debtMinimums = state.debts.reduce(
+          (s, d) => s + d.minimumPayment,
+          0
+        );
+        // If the user hasn't reached the Fixed Costs step yet (plan is null)
+        // but they already have debts, fall back to an empty plan so the
+        // calculation still reflects the debt minimums.
+        const plan = state.spendingPlan ?? emptySpendingPlan();
+        return computeSuggestedPercent(plan, totalIncome, debtMinimums);
       },
       getRemainingDiscretionaryMonthly: () => {
         const state = get();
@@ -326,11 +430,17 @@ export const useFlowStore = create<FlowState>()(
           (s, i) => s + i.monthlyAmount,
           0
         );
-        const plan = state.spendingPlan;
-        const fixedTotal = plan
-          ? plan.fixedCostLineItems.reduce((s, i) => s + i.monthlyAmount, 0)
+        const lineItemsTotal = state.spendingPlan
+          ? state.spendingPlan.fixedCostLineItems.reduce(
+              (s, i) => s + i.monthlyAmount,
+              0
+            )
           : 0;
-        return totalIncome - fixedTotal;
+        const debtMinimums = state.debts.reduce(
+          (s, d) => s + d.minimumPayment,
+          0
+        );
+        return totalIncome - lineItemsTotal - debtMinimums;
       },
       reset: () =>
         set({

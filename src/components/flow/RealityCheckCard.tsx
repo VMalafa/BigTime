@@ -11,6 +11,8 @@ interface RealityCheckCardProps {
   totalIncome: number;
   totalFixedCosts: number;
   derivedPercent: number;
+  lineItemsTotal?: number;
+  debtMinimumsTotal?: number;
 }
 
 type BandStatus = "on-target" | "high" | "low" | "no-income";
@@ -52,10 +54,19 @@ export function RealityCheckCard({
   totalIncome,
   totalFixedCosts,
   derivedPercent,
+  lineItemsTotal,
+  debtMinimumsTotal,
 }: RealityCheckCardProps) {
   const remaining = totalIncome - totalFixedCosts;
   const status = bandStatus(derivedPercent, totalIncome);
   const copy = BAND_COPY[status];
+  // Show the breakdown row only when both parts are known AND debt minimums
+  // actually contribute something, so the card stays compact for users with
+  // no debt.
+  const showBreakdown =
+    lineItemsTotal !== undefined &&
+    debtMinimumsTotal !== undefined &&
+    debtMinimumsTotal > 0;
 
   const toneClasses: Record<typeof copy.tone, { border: string; bg: string; text: string }> = {
     green: {
@@ -105,6 +116,12 @@ export function RealityCheckCard({
           <p className="text-lg font-semibold text-text-primary">
             {formatCurrency(totalFixedCosts)}
           </p>
+          {showBreakdown && (
+            <p className="text-xs text-text-secondary">
+              {formatCurrency(lineItemsTotal ?? 0)} line items +{" "}
+              {formatCurrency(debtMinimumsTotal ?? 0)} debt minimums
+            </p>
+          )}
         </div>
         <div className="space-y-1">
           <p className="text-text-secondary">Remaining discretionary</p>

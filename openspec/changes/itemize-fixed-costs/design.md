@@ -141,7 +141,22 @@ Follow the existing `useFlowPersistence.ts` debounce pattern. Add a `persistFixe
 
 For anonymous users, `fixedCostLineItems` flows through the existing Zustand `persist` middleware to the `rich-life-flow` localStorage key automatically — no new code needed.
 
-### Decision 7: Migration on signup
+### Decision 7: Auto-include debt minimum payments in Fixed Costs totals
+
+The Debts step already captures each debt's `minimumPayment`. The Fixed Costs bucket's suggested percentage and dollar total SHALL fold in `sum(debts[].minimumPayment)` automatically, without duplicating debt data as `FixedCostLineItem` rows.
+
+- **Rationale**: Users told us directly that debt minimums should count without re-entry. Forcing them to type "$325 credit card minimum" twice (once on Debts, once on Fixed Costs) is a double-entry bug waiting to happen — and the data is already in the store. Treating debts as a second input to the derivation keeps the Debts step as the single source of truth for debts, while the Fixed Costs step stays focused on the non-debt obligations (rent, insurance, utilities, subscriptions).
+- **Implementation**:
+  - New store selectors: `getDebtMinimumsTotal()`, `getFixedCostsLineItemsTotal()`, and the existing `getFixedCostsTotalMonthly()` / `getSuggestedFixedCostsPercent()` / `getRemainingDiscretionaryMonthly()` are updated to sum `lineItems + debtMinimums`.
+  - `computeSuggestedPercent(plan, totalIncome, debtMinimumsTotal)` takes the debt total as a third argument.
+  - `syncSuggestedPercent` is called from `addDebt` / `updateDebt` / `removeDebt` in addition to the three line-item actions, so mutating debts after the plan is set still updates the slider (unless the user has overridden it).
+  - `RealityCheckCard` gains optional `lineItemsTotal` and `debtMinimumsTotal` props; when both are provided and debt minimums > 0, it renders a small "$X line items + $Y debt minimums" sub-line under "Total fixed commitments."
+  - The Fixed Costs page renders an "Included automatically" card above the manual line-item list when `debtMinimumsTotal > 0`, showing the amount and a note to edit on the Debts step. This prevents users from adding manual Debt-Minimum line items that would double-count.
+- **Alternatives considered**:
+  - *Auto-generate FixedCostLineItem rows from debts* → rejected; creates two sources of truth (what if the user removes a debt? what if they edit the auto-generated row?) and double-counts if the sync drifts.
+  - *Only show debt minimums in the Reality Check, not on the form* → rejected; the "Included automatically" card makes the behavior discoverable at the moment the user is about to re-enter the same data, which is exactly when the reminder matters most.
+
+### Decision 8: Migration on signup
 
 The existing localStorage-to-DB migration action (invoked on signup per the dual-path-persistence spec) must learn to carry `fixedCostLineItems` along. After the existing `SpendingPlan` upsert, iterate `fixedCostLineItems` from the payload and insert them with a fresh `cuid` for each row.
 

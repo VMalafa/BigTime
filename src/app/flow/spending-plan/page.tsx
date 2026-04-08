@@ -29,11 +29,15 @@ export default function SpendingPlanPage() {
     setCurrentStep,
     setFixedCostsOverridden,
     getTotalMonthlyIncome,
+    getFixedCostsLineItemsTotal,
+    getDebtMinimumsTotal,
     getFixedCostsTotalMonthly,
     getSuggestedFixedCostsPercent,
   } = useFlowStore();
 
   const totalIncome = getTotalMonthlyIncome();
+  const lineItemsTotal = getFixedCostsLineItemsTotal();
+  const debtMinimumsTotal = getDebtMinimumsTotal();
   const totalFixedCosts = getFixedCostsTotalMonthly();
   const suggestedFixedCostsPercent = getSuggestedFixedCostsPercent();
 
@@ -162,6 +166,8 @@ export default function SpendingPlanPage() {
           totalIncome={totalIncome}
           totalFixedCosts={totalFixedCosts}
           derivedPercent={suggestedFixedCostsPercent}
+          lineItemsTotal={lineItemsTotal}
+          debtMinimumsTotal={debtMinimumsTotal}
         />
 
         {showResetAffordance && (
