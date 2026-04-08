@@ -10,7 +10,9 @@ import type {
   DebtEntry,
   IncomeEntry,
   SpendingPlanData,
+  FixedCostLineItem,
 } from "@/lib/store/flow-store";
+import type { FixedCostCategory } from "@/lib/constants/csp-ranges";
 
 const ACTIVE_PROFILE_COOKIE = "active-profile-id";
 
@@ -121,13 +123,14 @@ export async function persistSpendingPlan(plan: SpendingPlanData) {
   const profileId = await getActiveProfileId();
   if (!profileId) return;
 
-  await prisma.spendingPlan.upsert({
+  const upserted = await prisma.spendingPlan.upsert({
     where: { profileId },
     update: {
       fixedCostsPercent: plan.fixedCostsPercent,
       savingsPercent: plan.savingsPercent,
       investmentsPercent: plan.investmentsPercent,
       guiltFreePercent: plan.guiltFreePercent,
+      fixedCostsOverridden: plan.fixedCostsOverridden,
     },
     create: {
       profileId,
@@ -135,8 +138,53 @@ export async function persistSpendingPlan(plan: SpendingPlanData) {
       savingsPercent: plan.savingsPercent,
       investmentsPercent: plan.investmentsPercent,
       guiltFreePercent: plan.guiltFreePercent,
+      fixedCostsOverridden: plan.fixedCostsOverridden,
     },
+    select: { id: true },
   });
+
+  await persistFixedCostLineItemsForPlan(upserted.id, plan.fixedCostLineItems);
+}
+
+async function persistFixedCostLineItemsForPlan(
+  spendingPlanId: string,
+  items: FixedCostLineItem[]
+) {
+  // Transactional replace: delete existing rows and recreate from the current
+  // store state. The table is a small per-profile child set; a replace is
+  // simpler than a row-by-row diff and guarantees the DB matches the store
+  // after each debounced flush.
+  await prisma.$transaction([
+    prisma.fixedCostLineItem.deleteMany({ where: { spendingPlanId } }),
+    ...(items.length > 0
+      ? [
+          prisma.fixedCostLineItem.createMany({
+            data: items.map((i, index) => ({
+              spendingPlanId,
+              category: i.category as FixedCostCategory,
+              name: i.name,
+              monthlyAmount: i.monthlyAmount,
+              note: i.note ?? null,
+              sortOrder: i.sortOrder ?? index,
+            })),
+          }),
+        ]
+      : []),
+  ]);
+}
+
+export async function persistFixedCostLineItems(items: FixedCostLineItem[]) {
+  const profileId = await getActiveProfileId();
+  if (!profileId) return;
+
+  const plan = await prisma.spendingPlan.findUnique({
+    where: { profileId },
+    select: { id: true },
+  });
+
+  if (!plan) return;
+
+  await persistFixedCostLineItemsForPlan(plan.id, items);
 }
 
 export async function persistMoneyDials(dials: Record<string, number>) {
@@ -183,6 +231,11 @@ export async function loadProfileFlowData() {
       }),
       prisma.spendingPlan.findUnique({
         where: { profileId },
+        include: {
+          fixedCostLineItems: {
+            orderBy: { sortOrder: "asc" },
+          },
+        },
       }),
       prisma.moneyDial.findMany({
         where: { profileId },
@@ -216,6 +269,15 @@ export async function loadProfileFlowData() {
           savingsPercent: spendingPlan.savingsPercent,
           investmentsPercent: spendingPlan.investmentsPercent,
           guiltFreePercent: spendingPlan.guiltFreePercent,
+          fixedCostsOverridden: spendingPlan.fixedCostsOverridden,
+          fixedCostLineItems: spendingPlan.fixedCostLineItems.map((i) => ({
+            id: i.id,
+            category: i.category as FixedCostCategory,
+            name: i.name,
+            monthlyAmount: Number(i.monthlyAmount),
+            note: i.note ?? undefined,
+            sortOrder: i.sortOrder,
+          })),
         }
       : null,
     moneyDials: Object.fromEntries(

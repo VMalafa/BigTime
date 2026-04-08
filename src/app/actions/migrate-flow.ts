@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 import type { DebtType, DialCategory } from "@/lib/store/flow-store";
+import type { FixedCostCategory } from "@/lib/constants/csp-ranges";
 
 interface LocalFlowData {
   scripts?: Record<number, string>;
@@ -26,6 +27,14 @@ interface LocalFlowData {
     savingsPercent: number;
     investmentsPercent: number;
     guiltFreePercent: number;
+    fixedCostsOverridden?: boolean;
+    fixedCostLineItems?: Array<{
+      category: string;
+      name: string;
+      monthlyAmount: number;
+      note?: string;
+      sortOrder?: number;
+    }>;
   } | null;
   moneyDials?: Record<string, number>;
 }
@@ -102,14 +111,43 @@ export async function migrateFlowData(localData: LocalFlowData) {
       });
     }
 
-    // Migrate spending plan
+    // Migrate spending plan (and its fixed-cost line items).
+    // Line items are recreated with server-generated IDs to replace any
+    // client-side ids carried in from localStorage.
     if (localData.spendingPlan) {
-      await prisma.spendingPlan.create({
+      const {
+        fixedCostLineItems = [],
+        fixedCostsOverridden = false,
+        fixedCostsPercent,
+        savingsPercent,
+        investmentsPercent,
+        guiltFreePercent,
+      } = localData.spendingPlan;
+
+      const createdPlan = await prisma.spendingPlan.create({
         data: {
           profileId: profile.id,
-          ...localData.spendingPlan,
+          fixedCostsPercent,
+          savingsPercent,
+          investmentsPercent,
+          guiltFreePercent,
+          fixedCostsOverridden,
         },
+        select: { id: true },
       });
+
+      if (fixedCostLineItems.length > 0) {
+        await prisma.fixedCostLineItem.createMany({
+          data: fixedCostLineItems.map((item, index) => ({
+            spendingPlanId: createdPlan.id,
+            category: item.category as FixedCostCategory,
+            name: item.name,
+            monthlyAmount: item.monthlyAmount,
+            note: item.note ?? null,
+            sortOrder: item.sortOrder ?? index,
+          })),
+        });
+      }
     }
 
     // Migrate money dials

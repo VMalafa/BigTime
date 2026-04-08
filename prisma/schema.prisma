@@ -8,11 +8,11 @@ datasource db {
 }
 
 model User {
-  id              String    @id @default(uuid())
-  email           String    @unique
+  id              String           @id @default(uuid())
+  email           String           @unique
   name            String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
   profiles        Profile[]
   wholenessScore  WholenessScore?
   automationItems AutomationItem[]
@@ -20,19 +20,20 @@ model User {
 }
 
 model Profile {
-  id             String          @id @default(uuid())
-  userId         String
-  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name           String
-  isDefault      Boolean         @default(false)
-  moneyType      MoneyType?
-  moneyScripts   MoneyScript[]
-  debts          Debt[]
-  incomeSources  IncomeSource[]
-  spendingPlan   SpendingPlan?
-  moneyDials     MoneyDial[]
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  id            String         @id @default(uuid())
+  userId        String
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name          String
+  isDefault     Boolean        @default(false)
+  moneyType     MoneyType?
+  moneyScripts  MoneyScript[]
+  debts         Debt[]
+  incomeSources IncomeSource[]
+  spendingPlan  SpendingPlan?
+  moneyDials    MoneyDial[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
   @@index([userId])
 }
 
@@ -52,22 +53,24 @@ model MoneyScript {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   aiReflection String?
+
   @@unique([profileId, promptId])
 }
 
 model Debt {
-  id             String    @id @default(uuid())
+  id             String   @id @default(uuid())
   profileId      String
-  profile        Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  profile        Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
   name           String
-  balance        Decimal   @db.Decimal(12, 2)
-  apr            Decimal   @db.Decimal(5, 3)
-  minimumPayment Decimal   @db.Decimal(10, 2)
+  balance        Decimal  @db.Decimal(12, 2)
+  apr            Decimal  @db.Decimal(5, 3)
+  minimumPayment Decimal  @db.Decimal(10, 2)
   debtType       DebtType
-  creditLimit    Decimal?  @db.Decimal(12, 2)
-  isShared       Boolean   @default(false)
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  creditLimit    Decimal? @db.Decimal(12, 2)
+  isShared       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
   @@index([profileId])
 }
 
@@ -91,19 +94,47 @@ model IncomeSource {
   isAfterTax    Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
   @@index([profileId])
 }
 
 model SpendingPlan {
-  id                   String   @id @default(uuid())
-  profileId            String   @unique
-  profile              Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  id                   String              @id @default(uuid())
+  profileId            String              @unique
+  profile              Profile             @relation(fields: [profileId], references: [id], onDelete: Cascade)
   fixedCostsPercent    Int
   savingsPercent       Int
   investmentsPercent   Int
   guiltFreePercent     Int
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  fixedCostsOverridden Boolean             @default(false)
+  fixedCostLineItems   FixedCostLineItem[]
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+}
+
+model FixedCostLineItem {
+  id             String            @id @default(uuid())
+  spendingPlanId String
+  spendingPlan   SpendingPlan      @relation(fields: [spendingPlanId], references: [id], onDelete: Cascade)
+  category       FixedCostCategory
+  name           String
+  monthlyAmount  Decimal           @db.Decimal(10, 2)
+  note           String?
+  sortOrder      Int               @default(0)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([spendingPlanId])
+}
+
+enum FixedCostCategory {
+  HOUSING
+  INSURANCE
+  UTILITIES
+  TRANSPORTATION
+  SUBSCRIPTIONS
+  DEBT_MINIMUMS
+  OTHER
 }
 
 model MoneyDial {
@@ -114,6 +145,7 @@ model MoneyDial {
   level     Int
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
+
   @@unique([profileId, category])
 }
 
@@ -130,34 +162,35 @@ enum DialCategory {
 }
 
 model WholenessScore {
-  id                  String   @id @default(uuid())
-  userId              String   @unique
-  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  budgetScore         Int      @default(0)
-  saveScore           Int      @default(0)
-  debtScore           Int      @default(0)
-  creditScore         Int      @default(0)
-  incomeScore         Int      @default(0)
-  retirementScore     Int      @default(0)
-  wealthScore         Int      @default(0)
-  insuranceScore      Int      @default(0)
-  netWorthScore       Int      @default(0)
-  legacyScore         Int      @default(0)
-  totalScore          Int      @default(0)
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  budgetScore     Int      @default(0)
+  saveScore       Int      @default(0)
+  debtScore       Int      @default(0)
+  creditScore     Int      @default(0)
+  incomeScore     Int      @default(0)
+  retirementScore Int      @default(0)
+  wealthScore     Int      @default(0)
+  insuranceScore  Int      @default(0)
+  netWorthScore   Int      @default(0)
+  legacyScore     Int      @default(0)
+  totalScore      Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 model AutomationItem {
-  id          String   @id @default(uuid())
+  id          String             @id @default(uuid())
   userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   title       String
   description String?
-  isCompleted Boolean  @default(false)
+  isCompleted Boolean            @default(false)
   category    AutomationCategory
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
   @@index([userId])
 }
 
@@ -170,15 +203,16 @@ enum AutomationCategory {
 }
 
 model CheckIn {
-  id              String   @id @default(uuid())
-  userId          String
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  month           DateTime
-  wentWell        String?
-  feltHard        String?
-  toAdjust        String?
-  creditWins      String?
-  aiSummary       String?
-  createdAt       DateTime @default(now())
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  month      DateTime
+  wentWell   String?
+  feltHard   String?
+  toAdjust   String?
+  creditWins String?
+  aiSummary  String?
+  createdAt  DateTime @default(now())
+
   @@unique([userId, month])
 }

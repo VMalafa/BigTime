@@ -39,7 +39,9 @@ export function useFlowPersistence() {
     const unsubscribe = useFlowStore.subscribe((state) => {
       if (!state._isAuthenticated || !state._isHydrated) return;
 
-      // Serialize relevant state to detect actual changes
+      // Serialize relevant state to detect actual changes. `spendingPlan`
+      // already includes `fixedCostLineItems` and `fixedCostsOverridden`, so
+      // edits to line items flow through the same debounced flush.
       const stateKey = JSON.stringify({
         scripts: state.scripts,
         moneyType: state.moneyType,

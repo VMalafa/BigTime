@@ -2,30 +2,73 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
 import { StepWrapper } from "@/components/flow/StepWrapper";
 import { FlowNavigation } from "@/components/flow/FlowNavigation";
 import { CSPSliders } from "@/components/flow/CSPSliders";
+import { RealityCheckCard } from "@/components/flow/RealityCheckCard";
 import { Button } from "@/components/ui/Button";
 import { useFlowStore, type SpendingPlanData } from "@/lib/store/flow-store";
 import { CSP_RANGES } from "@/lib/constants/csp-ranges";
+import { formatCurrency, formatPercent } from "@/lib/utils/format";
 
 const DEFAULT_PLAN: SpendingPlanData = {
   fixedCostsPercent: CSP_RANGES.fixedCosts.min,
   savingsPercent: CSP_RANGES.savings.min,
   investmentsPercent: CSP_RANGES.investments.min,
   guiltFreePercent: CSP_RANGES.guiltFree.min,
+  fixedCostLineItems: [],
+  fixedCostsOverridden: false,
 };
 
 export default function SpendingPlanPage() {
   const router = useRouter();
-  const { spendingPlan, setSpendingPlan, setCurrentStep, getTotalMonthlyIncome } =
-    useFlowStore();
+  const {
+    spendingPlan,
+    setSpendingPlan,
+    setCurrentStep,
+    setFixedCostsOverridden,
+    getTotalMonthlyIncome,
+    getFixedCostsTotalMonthly,
+    getSuggestedFixedCostsPercent,
+  } = useFlowStore();
 
   const totalIncome = getTotalMonthlyIncome();
+  const totalFixedCosts = getFixedCostsTotalMonthly();
+  const suggestedFixedCostsPercent = getSuggestedFixedCostsPercent();
 
-  const [values, setValues] = useState<SpendingPlanData>(
-    spendingPlan ?? DEFAULT_PLAN
+  const initial: SpendingPlanData = spendingPlan ?? DEFAULT_PLAN;
+  // Pre-seed the Fixed Costs slider with the derived value the first time the
+  // user lands here, as long as they haven't manually overridden it yet.
+  const seededFixedCosts =
+    !initial.fixedCostsOverridden && suggestedFixedCostsPercent > 0
+      ? suggestedFixedCostsPercent
+      : initial.fixedCostsPercent;
+
+  const [values, setValues] = useState<SpendingPlanData>({
+    ...initial,
+    fixedCostsPercent: seededFixedCosts,
+  });
+
+  // "Adjust state while rendering" pattern: if the user returns to Fixed
+  // Costs, edits line items, and comes back without having overridden the
+  // slider, keep local state in sync with the refreshed suggested value.
+  // Using this pattern instead of useEffect avoids the cascading-render
+  // lint/perf warning from setState-in-effect.
+  // https://react.dev/reference/react/useState#storing-information-from-previous-renders
+  const [lastSeenSuggested, setLastSeenSuggested] = useState(
+    suggestedFixedCostsPercent
   );
+  if (
+    !values.fixedCostsOverridden &&
+    suggestedFixedCostsPercent !== lastSeenSuggested
+  ) {
+    setLastSeenSuggested(suggestedFixedCostsPercent);
+    setValues({
+      ...values,
+      fixedCostsPercent: suggestedFixedCostsPercent,
+    });
+  }
 
   const total =
     values.fixedCostsPercent +
@@ -34,33 +77,69 @@ export default function SpendingPlanPage() {
     values.guiltFreePercent;
 
   const isOver = total > 100;
+  const delta = total - 100;
+
+  const showResetAffordance =
+    values.fixedCostsOverridden &&
+    suggestedFixedCostsPercent > 0 &&
+    values.fixedCostsPercent !== suggestedFixedCostsPercent;
+
+  function handleValuesChange(next: SpendingPlanData) {
+    // If the Fixed Costs slider moved, mark the plan as overridden so future
+    // line-item changes don't silently overwrite the user's choice.
+    if (next.fixedCostsPercent !== values.fixedCostsPercent) {
+      if (!next.fixedCostsOverridden) {
+        next = { ...next, fixedCostsOverridden: true };
+      }
+      setFixedCostsOverridden(true);
+    }
+    setValues(next);
+  }
+
+  function handleResetToSuggested() {
+    setFixedCostsOverridden(false);
+    setValues((prev) => ({
+      ...prev,
+      fixedCostsPercent: suggestedFixedCostsPercent,
+      fixedCostsOverridden: false,
+    }));
+  }
 
   function handleBalance() {
-    const remaining = 100 - total;
-    if (remaining <= 0) return;
+    const remainingDelta = 100 - total;
+    if (remainingDelta === 0) return;
 
-    // Distribute remaining proportionally based on current values
-    const currentTotal = total || 1; // avoid divide by zero
-    const updated: SpendingPlanData = {
-      fixedCostsPercent: Math.round(
-        values.fixedCostsPercent + (values.fixedCostsPercent / currentTotal) * remaining
-      ),
-      savingsPercent: Math.round(
-        values.savingsPercent + (values.savingsPercent / currentTotal) * remaining
-      ),
-      investmentsPercent: Math.round(
-        values.investmentsPercent + (values.investmentsPercent / currentTotal) * remaining
-      ),
-      guiltFreePercent: 0,
-    };
-    // Assign remainder to guilt-free to guarantee exactly 100%
-    updated.guiltFreePercent =
-      100 -
-      updated.fixedCostsPercent -
-      updated.savingsPercent -
-      updated.investmentsPercent;
+    // Distribute the delta across Savings / Investments / Guilt-Free only,
+    // preserving their relative weights. Fixed Costs is intentionally left
+    // alone per the "don't auto-rebalance" design decision.
+    const flexibleTotal =
+      values.savingsPercent + values.investmentsPercent + values.guiltFreePercent;
+    const safeBase = flexibleTotal || 1;
 
-    setValues(updated);
+    const savings = Math.max(
+      0,
+      Math.round(
+        values.savingsPercent + (values.savingsPercent / safeBase) * remainingDelta
+      )
+    );
+    const investments = Math.max(
+      0,
+      Math.round(
+        values.investmentsPercent +
+          (values.investmentsPercent / safeBase) * remainingDelta
+      )
+    );
+    const guiltFree = Math.max(
+      0,
+      100 - values.fixedCostsPercent - savings - investments
+    );
+
+    setValues({
+      ...values,
+      savingsPercent: savings,
+      investmentsPercent: investments,
+      guiltFreePercent: guiltFree,
+    });
   }
 
   function handleNext() {
@@ -70,7 +149,7 @@ export default function SpendingPlanPage() {
   }
 
   function handleBack() {
-    router.push("/flow/income");
+    router.push("/flow/fixed-costs");
   }
 
   return (
@@ -79,17 +158,68 @@ export default function SpendingPlanPage() {
       subtitle="Ramit Sethi's system: allocate every dollar with intention, not restriction."
     >
       <div className="space-y-8">
+        <RealityCheckCard
+          totalIncome={totalIncome}
+          totalFixedCosts={totalFixedCosts}
+          derivedPercent={suggestedFixedCostsPercent}
+        />
+
+        {showResetAffordance && (
+          <motion.div
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center justify-between rounded-md border border-bg-secondary bg-white px-4 py-3"
+          >
+            <p className="text-sm text-text-secondary">
+              Derived from your line items:{" "}
+              <span className="font-semibold text-text-primary">
+                {formatPercent(suggestedFixedCostsPercent)}
+              </span>
+            </p>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleResetToSuggested}
+            >
+              Reset to suggested
+            </Button>
+          </motion.div>
+        )}
+
         <CSPSliders
           values={values}
-          onChange={setValues}
+          onChange={handleValuesChange}
           totalIncome={totalIncome}
         />
 
-        {total !== 100 && !isOver && (
-          <div className="flex justify-center">
-            <Button variant="secondary" onClick={handleBalance}>
-              Balance Remaining
-            </Button>
+        {total !== 100 && (
+          <div
+            className={`rounded-lg px-5 py-4 border ${
+              isOver
+                ? "border-error bg-error/10"
+                : "border-warning bg-warning/10"
+            }`}
+            role="status"
+            aria-live="polite"
+          >
+            <p
+              className={`font-sans font-medium ${
+                isOver ? "text-error" : "text-warning"
+              }`}
+            >
+              {isOver ? "Over budget" : "Under budget"} by{" "}
+              {formatPercent(Math.abs(delta))} (
+              {formatCurrency((Math.abs(delta) / 100) * totalIncome)})
+            </p>
+            <p className="text-sm text-text-secondary mt-1">
+              Adjust Savings, Investments, or Guilt-Free to reach 100%, or tap
+              the button below to distribute across those flexible buckets.
+            </p>
+            <div className="mt-3">
+              <Button variant="secondary" onClick={handleBalance}>
+                Balance remaining across flexible buckets
+              </Button>
+            </div>
           </div>
         )}
 

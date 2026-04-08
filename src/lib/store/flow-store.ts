@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import type { FixedCostCategory } from "@/lib/constants/csp-ranges";
 
 export type MoneyType = "OPTIMIZER" | "AVOIDER" | "WORRIER" | "DREAMER";
 
@@ -44,11 +45,22 @@ export interface IncomeEntry {
   isAfterTax: boolean;
 }
 
+export interface FixedCostLineItem {
+  id: string;
+  category: FixedCostCategory;
+  name: string;
+  monthlyAmount: number;
+  note?: string;
+  sortOrder: number;
+}
+
 export interface SpendingPlanData {
   fixedCostsPercent: number;
   savingsPercent: number;
   investmentsPercent: number;
   guiltFreePercent: number;
+  fixedCostLineItems: FixedCostLineItem[];
+  fixedCostsOverridden: boolean;
 }
 
 interface FlowState {
@@ -76,9 +88,17 @@ interface FlowState {
   updateIncome: (id: string, income: Partial<IncomeEntry>) => void;
   removeIncome: (id: string) => void;
   setSpendingPlan: (plan: SpendingPlanData) => void;
+  addFixedCostLineItem: (item: FixedCostLineItem) => void;
+  updateFixedCostLineItem: (id: string, patch: Partial<FixedCostLineItem>) => void;
+  removeFixedCostLineItem: (id: string) => void;
+  reorderFixedCostLineItems: (orderedIds: string[]) => void;
+  setFixedCostsOverridden: (flag: boolean) => void;
   setMoneyDial: (category: DialCategory, level: number) => void;
   setComplete: (complete: boolean) => void;
   getTotalMonthlyIncome: () => number;
+  getFixedCostsTotalMonthly: () => number;
+  getSuggestedFixedCostsPercent: () => number;
+  getRemainingDiscretionaryMonthly: () => number;
   reset: () => void;
 
   // Hydration
@@ -104,6 +124,49 @@ const initialDials: Record<DialCategory, number> = {
   EDUCATION: 5,
   GIVING: 5,
 };
+
+const emptySpendingPlan = (): SpendingPlanData => ({
+  fixedCostsPercent: 0,
+  savingsPercent: 0,
+  investmentsPercent: 0,
+  guiltFreePercent: 0,
+  fixedCostLineItems: [],
+  fixedCostsOverridden: false,
+});
+
+// Older persisted shapes may be missing fields added in newer versions.
+// Always backfill line-item state so downstream selectors never see `undefined`.
+function normalizeSpendingPlan(
+  plan: SpendingPlanData | null | undefined
+): SpendingPlanData | null {
+  if (!plan) return null;
+  return {
+    fixedCostsPercent: plan.fixedCostsPercent ?? 0,
+    savingsPercent: plan.savingsPercent ?? 0,
+    investmentsPercent: plan.investmentsPercent ?? 0,
+    guiltFreePercent: plan.guiltFreePercent ?? 0,
+    fixedCostLineItems: plan.fixedCostLineItems ?? [],
+    fixedCostsOverridden: plan.fixedCostsOverridden ?? false,
+  };
+}
+
+function computeSuggestedPercent(plan: SpendingPlanData, totalIncome: number): number {
+  if (totalIncome <= 0) return 0;
+  const total = plan.fixedCostLineItems.reduce((s, i) => s + i.monthlyAmount, 0);
+  return Math.round((total / totalIncome) * 100);
+}
+
+// After any line-item mutation, if the user has not overridden Fixed Costs,
+// keep `fixedCostsPercent` in sync with the freshly-derived suggested value.
+function syncSuggestedPercent(
+  plan: SpendingPlanData,
+  totalIncome: number
+): SpendingPlanData {
+  if (plan.fixedCostsOverridden) return plan;
+  const suggested = computeSuggestedPercent(plan, totalIncome);
+  if (suggested === plan.fixedCostsPercent) return plan;
+  return { ...plan, fixedCostsPercent: suggested };
+}
 
 export const useFlowStore = create<FlowState>()(
   persist(
@@ -151,7 +214,83 @@ export const useFlowStore = create<FlowState>()(
         set((state) => ({
           incomeSources: state.incomeSources.filter((i) => i.id !== id),
         })),
-      setSpendingPlan: (plan) => set({ spendingPlan: plan }),
+      setSpendingPlan: (plan) =>
+        set({ spendingPlan: normalizeSpendingPlan(plan) }),
+      addFixedCostLineItem: (item) =>
+        set((state) => {
+          const base = state.spendingPlan ?? emptySpendingPlan();
+          const nextItems = [...base.fixedCostLineItems, item];
+          const totalIncome = state.incomeSources.reduce(
+            (s, i) => s + i.monthlyAmount,
+            0
+          );
+          return {
+            spendingPlan: syncSuggestedPercent(
+              { ...base, fixedCostLineItems: nextItems },
+              totalIncome
+            ),
+          };
+        }),
+      updateFixedCostLineItem: (id, patch) =>
+        set((state) => {
+          if (!state.spendingPlan) return {};
+          const nextItems = state.spendingPlan.fixedCostLineItems.map((i) =>
+            i.id === id ? { ...i, ...patch } : i
+          );
+          const totalIncome = state.incomeSources.reduce(
+            (s, i) => s + i.monthlyAmount,
+            0
+          );
+          return {
+            spendingPlan: syncSuggestedPercent(
+              { ...state.spendingPlan, fixedCostLineItems: nextItems },
+              totalIncome
+            ),
+          };
+        }),
+      removeFixedCostLineItem: (id) =>
+        set((state) => {
+          if (!state.spendingPlan) return {};
+          const nextItems = state.spendingPlan.fixedCostLineItems.filter(
+            (i) => i.id !== id
+          );
+          const totalIncome = state.incomeSources.reduce(
+            (s, i) => s + i.monthlyAmount,
+            0
+          );
+          return {
+            spendingPlan: syncSuggestedPercent(
+              { ...state.spendingPlan, fixedCostLineItems: nextItems },
+              totalIncome
+            ),
+          };
+        }),
+      reorderFixedCostLineItems: (orderedIds) =>
+        set((state) => {
+          if (!state.spendingPlan) return {};
+          const byId = new Map(
+            state.spendingPlan.fixedCostLineItems.map((i) => [i.id, i])
+          );
+          const nextItems = orderedIds
+            .map((id, index) => {
+              const item = byId.get(id);
+              return item ? { ...item, sortOrder: index } : null;
+            })
+            .filter((i): i is FixedCostLineItem => i !== null);
+          return {
+            spendingPlan: {
+              ...state.spendingPlan,
+              fixedCostLineItems: nextItems,
+            },
+          };
+        }),
+      setFixedCostsOverridden: (flag) =>
+        set((state) => {
+          if (!state.spendingPlan) return {};
+          return {
+            spendingPlan: { ...state.spendingPlan, fixedCostsOverridden: flag },
+          };
+        }),
       setMoneyDial: (category, level) =>
         set((state) => ({
           moneyDials: { ...state.moneyDials, [category]: level },
@@ -163,6 +302,35 @@ export const useFlowStore = create<FlowState>()(
           (sum, s) => sum + s.monthlyAmount,
           0
         );
+      },
+      getFixedCostsTotalMonthly: () => {
+        const plan = get().spendingPlan;
+        if (!plan) return 0;
+        return plan.fixedCostLineItems.reduce(
+          (sum, i) => sum + i.monthlyAmount,
+          0
+        );
+      },
+      getSuggestedFixedCostsPercent: () => {
+        const state = get();
+        if (!state.spendingPlan) return 0;
+        const totalIncome = state.incomeSources.reduce(
+          (s, i) => s + i.monthlyAmount,
+          0
+        );
+        return computeSuggestedPercent(state.spendingPlan, totalIncome);
+      },
+      getRemainingDiscretionaryMonthly: () => {
+        const state = get();
+        const totalIncome = state.incomeSources.reduce(
+          (s, i) => s + i.monthlyAmount,
+          0
+        );
+        const plan = state.spendingPlan;
+        const fixedTotal = plan
+          ? plan.fixedCostLineItems.reduce((s, i) => s + i.monthlyAmount, 0)
+          : 0;
+        return totalIncome - fixedTotal;
       },
       reset: () =>
         set({
@@ -182,7 +350,7 @@ export const useFlowStore = create<FlowState>()(
           moneyType: data.moneyType,
           debts: data.debts,
           incomeSources: data.incomeSources,
-          spendingPlan: data.spendingPlan,
+          spendingPlan: normalizeSpendingPlan(data.spendingPlan),
           moneyDials: { ...initialDials, ...data.moneyDials },
           _isHydrated: true,
         }),
@@ -196,6 +364,12 @@ export const useFlowStore = create<FlowState>()(
         void _isAuthenticated;
         void _isHydrated;
         return rest;
+      },
+      onRehydrateStorage: () => (state) => {
+        // Backfill fields on plans saved by older app versions.
+        if (state?.spendingPlan) {
+          state.spendingPlan = normalizeSpendingPlan(state.spendingPlan);
+        }
       },
     }
   )

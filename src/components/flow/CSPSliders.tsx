@@ -6,7 +6,11 @@ import { CSP_RANGES, CSP_BUCKET_COLORS, type CSPBucket } from "@/lib/constants/c
 import { type SpendingPlanData } from "@/lib/store/flow-store";
 import { formatCurrency, formatPercent } from "@/lib/utils/format";
 
-const BUCKET_KEYS: { key: CSPBucket; field: keyof SpendingPlanData }[] = [
+type SpendingPlanPercentField = {
+  [K in keyof SpendingPlanData]: SpendingPlanData[K] extends number ? K : never;
+}[keyof SpendingPlanData];
+
+const BUCKET_KEYS: { key: CSPBucket; field: SpendingPlanPercentField }[] = [
   { key: "fixedCosts", field: "fixedCostsPercent" },
   { key: "savings", field: "savingsPercent" },
   { key: "investments", field: "investmentsPercent" },
@@ -29,7 +33,7 @@ export function CSPSliders({ values, onChange, totalIncome }: CSPSlidersProps) {
   const remaining = 100 - total;
   const isOver = total > 100;
 
-  function handleChange(field: keyof SpendingPlanData, value: number) {
+  function handleChange(field: SpendingPlanPercentField, value: number) {
     onChange({ ...values, [field]: value });
   }
 
