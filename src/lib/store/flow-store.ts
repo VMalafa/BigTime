@@ -45,6 +45,22 @@ export interface IncomeEntry {
   isAfterTax: boolean;
 }
 
+export type BonusFrequency =
+  | "ONE_TIME"
+  | "QUARTERLY"
+  | "SEMI_ANNUAL"
+  | "ANNUAL";
+
+export interface BonusEntry {
+  id: string;
+  name: string;
+  grossAmount: number;
+  estimatedTaxRate: number;
+  frequency: BonusFrequency;
+  expectedDate?: string; // ISO date (YYYY-MM-DD)
+  notes?: string;
+}
+
 export interface FixedCostLineItem {
   id: string;
   category: FixedCostCategory;
@@ -69,6 +85,7 @@ interface FlowState {
   moneyType: MoneyType | null;
   debts: DebtEntry[];
   incomeSources: IncomeEntry[];
+  bonusItems: BonusEntry[];
   spendingPlan: SpendingPlanData | null;
   moneyDials: Record<DialCategory, number>;
   isComplete: boolean;
@@ -87,6 +104,9 @@ interface FlowState {
   addIncome: (income: IncomeEntry) => void;
   updateIncome: (id: string, income: Partial<IncomeEntry>) => void;
   removeIncome: (id: string) => void;
+  addBonus: (bonus: BonusEntry) => void;
+  updateBonus: (id: string, patch: Partial<BonusEntry>) => void;
+  removeBonus: (id: string) => void;
   setSpendingPlan: (plan: SpendingPlanData) => void;
   addFixedCostLineItem: (item: FixedCostLineItem) => void;
   updateFixedCostLineItem: (id: string, patch: Partial<FixedCostLineItem>) => void;
@@ -96,6 +116,9 @@ interface FlowState {
   setMoneyDial: (category: DialCategory, level: number) => void;
   setComplete: (complete: boolean) => void;
   getTotalMonthlyIncome: () => number;
+  getTotalAnnualBonusNet: () => number;
+  getMonthlyBonusEquivalent: () => number;
+  getEffectiveMonthlyIncome: () => number;
   getFixedCostsTotalMonthly: () => number;
   getSuggestedFixedCostsPercent: () => number;
   getRemainingDiscretionaryMonthly: () => number;
@@ -107,6 +130,7 @@ interface FlowState {
     moneyType: MoneyType | null;
     debts: DebtEntry[];
     incomeSources: IncomeEntry[];
+    bonusItems: BonusEntry[];
     spendingPlan: SpendingPlanData | null;
     moneyDials: Record<DialCategory, number>;
   }) => void;
@@ -176,6 +200,7 @@ export const useFlowStore = create<FlowState>()(
       moneyType: null,
       debts: [],
       incomeSources: [],
+      bonusItems: [],
       spendingPlan: null,
       moneyDials: { ...initialDials },
       isComplete: false,
@@ -213,6 +238,18 @@ export const useFlowStore = create<FlowState>()(
       removeIncome: (id) =>
         set((state) => ({
           incomeSources: state.incomeSources.filter((i) => i.id !== id),
+        })),
+      addBonus: (bonus) =>
+        set((state) => ({ bonusItems: [...state.bonusItems, bonus] })),
+      updateBonus: (id, patch) =>
+        set((state) => ({
+          bonusItems: state.bonusItems.map((b) =>
+            b.id === id ? { ...b, ...patch } : b
+          ),
+        })),
+      removeBonus: (id) =>
+        set((state) => ({
+          bonusItems: state.bonusItems.filter((b) => b.id !== id),
         })),
       setSpendingPlan: (plan) =>
         set({ spendingPlan: normalizeSpendingPlan(plan) }),
@@ -303,6 +340,26 @@ export const useFlowStore = create<FlowState>()(
           0
         );
       },
+      getTotalAnnualBonusNet: () => {
+        const state = get();
+        return state.bonusItems.reduce((sum, b) => {
+          const net = b.grossAmount * (1 - b.estimatedTaxRate / 100);
+          const perYear =
+            b.frequency === "QUARTERLY"
+              ? 4
+              : b.frequency === "SEMI_ANNUAL"
+                ? 2
+                : 1;
+          return sum + net * perYear;
+        }, 0);
+      },
+      getMonthlyBonusEquivalent: () => {
+        return get().getTotalAnnualBonusNet() / 12;
+      },
+      getEffectiveMonthlyIncome: () => {
+        const state = get();
+        return state.getTotalMonthlyIncome() + state.getMonthlyBonusEquivalent();
+      },
       getFixedCostsTotalMonthly: () => {
         const plan = get().spendingPlan;
         if (!plan) return 0;
@@ -339,6 +396,7 @@ export const useFlowStore = create<FlowState>()(
           moneyType: null,
           debts: [],
           incomeSources: [],
+          bonusItems: [],
           spendingPlan: null,
           moneyDials: { ...initialDials },
           isComplete: false,
@@ -350,6 +408,7 @@ export const useFlowStore = create<FlowState>()(
           moneyType: data.moneyType,
           debts: data.debts,
           incomeSources: data.incomeSources,
+          bonusItems: data.bonusItems ?? [],
           spendingPlan: normalizeSpendingPlan(data.spendingPlan),
           moneyDials: { ...initialDials, ...data.moneyDials },
           _isHydrated: true,

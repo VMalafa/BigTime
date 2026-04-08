@@ -9,6 +9,7 @@ import {
   persistMoneyType,
   persistDebts,
   persistIncomeSources,
+  persistBonusItems,
   persistSpendingPlan,
   persistMoneyDials,
 } from "@/app/actions/flow-persistence";
@@ -47,6 +48,7 @@ export function useFlowPersistence() {
         moneyType: state.moneyType,
         debts: state.debts,
         incomeSources: state.incomeSources,
+        bonusItems: state.bonusItems,
         spendingPlan: state.spendingPlan,
         moneyDials: state.moneyDials,
       });
@@ -63,6 +65,7 @@ export function useFlowPersistence() {
             state.moneyType ? persistMoneyType(state.moneyType) : null,
             persistDebts(state.debts),
             persistIncomeSources(state.incomeSources),
+            persistBonusItems(state.bonusItems),
             state.spendingPlan
               ? persistSpendingPlan(state.spendingPlan)
               : null,

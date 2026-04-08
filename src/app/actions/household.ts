@@ -17,6 +17,7 @@ export async function getHouseholdFinancials() {
     include: {
       debts: true,
       incomeSources: true,
+      bonusItems: true,
       spendingPlan: true,
       moneyDials: true,
       moneyScripts: true,
@@ -49,6 +50,21 @@ export async function getHouseholdFinancials() {
     }))
   );
 
+  const allBonuses = profiles.flatMap((p) =>
+    p.bonusItems.map((b) => ({
+      id: b.id,
+      profileName: p.name,
+      name: b.name,
+      grossAmount: Number(b.grossAmount),
+      estimatedTaxRate: Number(b.estimatedTaxRate),
+      frequency: b.frequency,
+      expectedDate: b.expectedDate
+        ? b.expectedDate.toISOString().slice(0, 10)
+        : undefined,
+      notes: b.notes ?? undefined,
+    }))
+  );
+
   const totalDebt = allDebts.reduce((sum, d) => sum + d.balance, 0);
   const totalMinPayments = allDebts.reduce(
     (sum, d) => sum + d.minimumPayment,
@@ -59,6 +75,15 @@ export async function getHouseholdFinancials() {
     0
   );
 
+  const frequencyPerYear = (f: string) =>
+    f === "QUARTERLY" ? 4 : f === "SEMI_ANNUAL" ? 2 : 1;
+  const totalAnnualBonusNet = allBonuses.reduce((sum, b) => {
+    const net = b.grossAmount * (1 - b.estimatedTaxRate / 100);
+    return sum + net * frequencyPerYear(b.frequency);
+  }, 0);
+  const monthlyBonusEquivalent = totalAnnualBonusNet / 12;
+  const effectiveMonthlyIncome = totalMonthlyIncome + monthlyBonusEquivalent;
+
   return {
     profiles: profiles.map((p) => ({
       id: p.id,
@@ -67,9 +92,13 @@ export async function getHouseholdFinancials() {
     })),
     debts: allDebts,
     income: allIncome,
+    bonuses: allBonuses,
     totalDebt,
     totalMinPayments,
     totalMonthlyIncome,
+    totalAnnualBonusNet,
+    monthlyBonusEquivalent,
+    effectiveMonthlyIncome,
     debtCount: allDebts.length,
     profileCount: profiles.length,
   };

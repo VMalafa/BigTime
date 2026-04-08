@@ -9,6 +9,8 @@ import type {
   DialCategory,
   DebtEntry,
   IncomeEntry,
+  BonusEntry,
+  BonusFrequency,
   SpendingPlanData,
   FixedCostLineItem,
 } from "@/lib/store/flow-store";
@@ -119,6 +121,27 @@ export async function persistIncomeSources(incomeSources: IncomeEntry[]) {
   }
 }
 
+export async function persistBonusItems(bonusItems: BonusEntry[]) {
+  const profileId = await getActiveProfileId();
+  if (!profileId) return;
+
+  await prisma.bonusItem.deleteMany({ where: { profileId } });
+
+  if (bonusItems.length > 0) {
+    await prisma.bonusItem.createMany({
+      data: bonusItems.map((b) => ({
+        profileId,
+        name: b.name,
+        grossAmount: b.grossAmount,
+        estimatedTaxRate: b.estimatedTaxRate,
+        frequency: b.frequency as BonusFrequency,
+        expectedDate: b.expectedDate ? new Date(b.expectedDate) : null,
+        notes: b.notes ?? null,
+      })),
+    });
+  }
+}
+
 export async function persistSpendingPlan(plan: SpendingPlanData) {
   const profileId = await getActiveProfileId();
   if (!profileId) return;
@@ -213,34 +236,45 @@ export async function loadProfileFlowData() {
   const profileId = await getActiveProfileId();
   if (!profileId) return null;
 
-  const [profile, scripts, debts, incomeSources, spendingPlan, moneyDials] =
-    await Promise.all([
-      prisma.profile.findUnique({
-        where: { id: profileId },
-        select: { moneyType: true },
-      }),
-      prisma.moneyScript.findMany({
-        where: { profileId },
-        select: { promptId: true, response: true },
-      }),
-      prisma.debt.findMany({
-        where: { profileId },
-      }),
-      prisma.incomeSource.findMany({
-        where: { profileId },
-      }),
-      prisma.spendingPlan.findUnique({
-        where: { profileId },
-        include: {
-          fixedCostLineItems: {
-            orderBy: { sortOrder: "asc" },
-          },
+  const [
+    profile,
+    scripts,
+    debts,
+    incomeSources,
+    bonusItems,
+    spendingPlan,
+    moneyDials,
+  ] = await Promise.all([
+    prisma.profile.findUnique({
+      where: { id: profileId },
+      select: { moneyType: true },
+    }),
+    prisma.moneyScript.findMany({
+      where: { profileId },
+      select: { promptId: true, response: true },
+    }),
+    prisma.debt.findMany({
+      where: { profileId },
+    }),
+    prisma.incomeSource.findMany({
+      where: { profileId },
+    }),
+    prisma.bonusItem.findMany({
+      where: { profileId },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.spendingPlan.findUnique({
+      where: { profileId },
+      include: {
+        fixedCostLineItems: {
+          orderBy: { sortOrder: "asc" },
         },
-      }),
-      prisma.moneyDial.findMany({
-        where: { profileId },
-      }),
-    ]);
+      },
+    }),
+    prisma.moneyDial.findMany({
+      where: { profileId },
+    }),
+  ]);
 
   return {
     moneyType: (profile?.moneyType as MoneyType) ?? null,
@@ -262,6 +296,17 @@ export async function loadProfileFlowData() {
       name: i.name,
       monthlyAmount: Number(i.monthlyAmount),
       isAfterTax: i.isAfterTax,
+    })),
+    bonusItems: bonusItems.map((b) => ({
+      id: b.id,
+      name: b.name,
+      grossAmount: Number(b.grossAmount),
+      estimatedTaxRate: Number(b.estimatedTaxRate),
+      frequency: b.frequency as BonusFrequency,
+      expectedDate: b.expectedDate
+        ? b.expectedDate.toISOString().slice(0, 10)
+        : undefined,
+      notes: b.notes ?? undefined,
     })),
     spendingPlan: spendingPlan
       ? {
