@@ -16,6 +16,39 @@ async function getSiteUrl(): Promise<string> {
   return `${protocol}://${host}`;
 }
 
+// User-facing copy shown when the Supabase auth backend can't be reached
+// (e.g. a paused/offline project, which otherwise surfaces as a raw browser
+// "ERR_NAME_NOT_RESOLVED" page the app has no control over).
+const AUTH_UNAVAILABLE_MESSAGE =
+  "We couldn't reach the sign-in service. It may be temporarily offline — please try again in a minute.";
+
+// Ping the Supabase GoTrue health endpoint so we can fail with a clear,
+// in-app message instead of redirecting the user off-site to a dead host.
+async function isSupabaseReachable(): Promise<boolean> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!url) return false;
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+    const res = await fetch(`${url}/auth/v1/health`, {
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    return res.ok;
+  } catch {
+    // DNS failure, timeout, or network error — treat as unreachable.
+    return false;
+  }
+}
+
+// Distinguish "backend unreachable" from a genuine bad-credentials response so
+// we don't tell the user their password is wrong when the service is down.
+function isConnectivityError(error: { name?: string; status?: number }): boolean {
+  return error.name === "AuthRetryableFetchError" || error.status === 0;
+}
+
 export async function createUserAndProfile(
   supabaseUserId: string,
   email: string,
@@ -83,9 +116,22 @@ export async function signIn(formData: FormData) {
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+
+  // supabase-js can throw on network failures rather than returning an error.
+  const result = await supabase.auth
+    .signInWithPassword({ email, password })
+    .catch(() => null);
+
+  if (result === null) {
+    return { error: AUTH_UNAVAILABLE_MESSAGE };
+  }
+
+  const { error } = result;
 
   if (error) {
+    if (isConnectivityError(error)) {
+      return { error: AUTH_UNAVAILABLE_MESSAGE };
+    }
     return { error: "Invalid email or password." };
   }
 
@@ -99,6 +145,22 @@ export async function signOut() {
 }
 
 export async function signInWithGoogle(): Promise<void> {
+  if (
+    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  ) {
+    // Auth isn't configured — surface a clear message instead of a broken flow.
+    redirect("/auth/login?error=config");
+  }
+
+  // signInWithOAuth only *builds* the provider URL; it never checks that the
+  // Supabase host is reachable. If the project is paused/offline, redirecting
+  // to that URL dumps the user on a raw browser DNS error. Preflight the
+  // backend so we can show an in-app message instead.
+  if (!(await isSupabaseReachable())) {
+    redirect("/auth/login?error=service_unavailable");
+  }
+
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
