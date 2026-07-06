@@ -11,6 +11,16 @@ interface NavItem {
   icon: ReactNode;
 }
 
+// Mobile shows fewer items; Settings/Check-In are available from the
+// dashboard home screen itself and don't need to compete for tab-bar space.
+const mobileKeys = new Set([
+  "/dashboard",
+  "/dashboard/income",
+  "/dashboard/debts",
+  "/dashboard/credit",
+  "/dashboard/automation",
+]);
+
 const navItems: NavItem[] = [
   {
     label: "Dashboard",
@@ -25,11 +35,41 @@ const navItems: NavItem[] = [
     ),
   },
   {
+    label: "Income",
+    href: "/dashboard/income",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M10 3v14M6 6h5a2.5 2.5 0 110 5H6l8 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  {
     label: "Debts",
     href: "/dashboard/debts",
     icon: (
       <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M10 2v16M6 6h8M6 10h8M6 14h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
+    label: "Credit",
+    href: "/dashboard/credit",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="2" y="5" width="16" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+        <path d="M2 9h16" stroke="currentColor" strokeWidth="1.5" />
+        <path d="M5 13h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
+    label: "Automation",
+    href: "/dashboard/automation",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="10" cy="10" r="2.5" stroke="currentColor" strokeWidth="1.5" />
+        <path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.5 4.5l1.5 1.5M14 14l1.5 1.5M4.5 15.5L6 14M14 6l1.5-1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
       </svg>
     ),
   },
@@ -110,10 +150,12 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         </div>
       </main>
 
-      {/* Mobile bottom tab bar */}
+      {/* Mobile bottom tab bar — trimmed to the 5 highest-use destinations */}
       <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-bg-secondary z-30">
         <div className="flex items-center justify-around h-16">
-          {navItems.map((item) => {
+          {navItems
+            .filter((item) => mobileKeys.has(item.href))
+            .map((item) => {
             const active = isActive(item.href);
             return (
               <Link

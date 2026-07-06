@@ -17,6 +17,7 @@ model User {
   wholenessScore  WholenessScore?
   automationItems AutomationItem[]
   checkIns        CheckIn[]
+  creditPlan      CreditPlan?
 }
 
 model Profile {
@@ -29,6 +30,7 @@ model Profile {
   moneyScripts  MoneyScript[]
   debts         Debt[]
   incomeSources IncomeSource[]
+  bonusItems    BonusItem[]
   spendingPlan  SpendingPlan?
   moneyDials    MoneyDial[]
   createdAt     DateTime       @default(now())
@@ -96,6 +98,29 @@ model IncomeSource {
   updatedAt     DateTime @updatedAt
 
   @@index([profileId])
+}
+
+model BonusItem {
+  id               String         @id @default(uuid())
+  profileId        String
+  profile          Profile        @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  name             String
+  grossAmount      Decimal        @db.Decimal(12, 2)
+  estimatedTaxRate Decimal        @db.Decimal(5, 2)
+  frequency        BonusFrequency @default(ONE_TIME)
+  expectedDate     DateTime?
+  notes            String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@index([profileId])
+}
+
+enum BonusFrequency {
+  ONE_TIME
+  QUARTERLY
+  SEMI_ANNUAL
+  ANNUAL
 }
 
 model SpendingPlan {
@@ -192,6 +217,21 @@ model AutomationItem {
   updatedAt   DateTime           @updatedAt
 
   @@index([userId])
+}
+
+model CreditPlan {
+  id                   String   @id @default(uuid())
+  userId               String   @unique
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currentScore         Int?
+  targetScore          Int?
+  targetUtilization    Int      @default(10)
+  monitoringEnrolled   Boolean  @default(false)
+  autopayAllAccounts   Boolean  @default(false)
+  frozenBureaus        Boolean  @default(false)
+  notes                String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 }
 
 enum AutomationCategory {

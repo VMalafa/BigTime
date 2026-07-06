@@ -30,9 +30,6 @@ export function CreditHealthCard({
   if (revolvingCount === 0) {
     return (
       <Card padding="md">
-        <h3 className="font-serif text-lg text-text-primary mb-2">
-          Credit Health
-        </h3>
         <p className="text-text-secondary text-sm">
           No revolving debt — credit utilization not applicable
         </p>
@@ -49,9 +46,6 @@ export function CreditHealthCard({
 
   return (
     <Card padding="md">
-      <h3 className="font-serif text-lg text-text-primary mb-3">
-        Credit Health
-      </h3>
       <div className="flex items-center gap-3">
         <span className="font-serif text-3xl text-text-primary">
           {formatPercentExact(utilization)}
