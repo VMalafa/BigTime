@@ -11,6 +11,7 @@ import { CreditHealthCard } from "@/components/dashboard/CreditHealthCard";
 import { IncomeSummaryCard } from "@/components/dashboard/IncomeSummaryCard";
 import { SectionHeader } from "@/components/dashboard/SectionHeader";
 import { MonthlyCheckInPrompt } from "@/components/dashboard/MonthlyCheckInPrompt";
+import { SafeToSpendCard } from "@/components/dashboard/SafeToSpendCard";
 import { AddPartnerPrompt } from "@/components/shared/AddPartnerPrompt";
 import { Card } from "@/components/ui/Card";
 import { formatCurrency, formatMonths } from "@/lib/utils/format";
@@ -157,6 +158,9 @@ export default function DashboardPage() {
       <p className="text-text-secondary font-sans text-sm mb-8">
         Everything in your plan — one click to adjust any area.
       </p>
+
+      {/* The household heartbeat: Safe-to-Spend for the current Pay Period. */}
+      <SafeToSpendCard />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Wholeness Score */}

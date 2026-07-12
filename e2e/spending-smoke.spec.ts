@@ -148,4 +148,11 @@ test("linked path: confidence-tiered Proposals on fixed-costs and debts steps", 
   // $6,000 existing + $5,500 derived = $11,500 effective monthly.
   await page.getByRole("button", { name: "Confirm income" }).click();
   await expect(page.getByText("$11,500/mo")).toBeVisible({ timeout: 15_000 });
+
+  // --- The heartbeat: with a confirmed income stream, the dashboard shows
+  // the single Safe-to-Spend number with its Pay Period span.
+  await page.goto("/dashboard");
+  await expect(page.getByText("Safe-to-Spend")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText(/Pay Period/)).toBeVisible();
+  await expect(page.getByText(/paycheck −/)).toBeVisible();
 });
