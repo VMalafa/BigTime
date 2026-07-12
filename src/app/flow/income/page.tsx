@@ -7,6 +7,7 @@ import { StepWrapper } from "@/components/flow/StepWrapper";
 import { FlowNavigation } from "@/components/flow/FlowNavigation";
 import { IncomeEntryForm } from "@/components/flow/IncomeEntryForm";
 import { BonusEntryForm } from "@/components/flow/BonusEntryForm";
+import { IncomeProposalsPanel } from "@/components/proposals/IncomeProposalsPanel";
 import { useFlowStore } from "@/lib/store/flow-store";
 import { formatCurrency } from "@/lib/utils/format";
 
@@ -36,6 +37,9 @@ export default function IncomePage() {
       subtitle="This powers your spending plan. Include regular pay — and bonuses if you get them."
     >
       <div className="space-y-8">
+        {/* Income Proposals (linked path) — always individually confirmed. */}
+        <IncomeProposalsPanel />
+
         <IncomeEntryForm />
 
         <div className="pt-2 border-t border-bg-secondary">

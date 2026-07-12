@@ -77,6 +77,8 @@ export default async function globalSetup() {
     await prisma.fixedCostLineItem.deleteMany({
       where: { spendingPlan: { profileId: PROFILE_ID } },
     });
+    // Confirmed income Proposals from earlier runs — reseeded below.
+    await prisma.incomeSource.deleteMany({ where: { profileId: PROFILE_ID } });
 
     await prisma.user.upsert({
       where: { id: authUserId },
@@ -189,6 +191,12 @@ export default async function globalSetup() {
       ...[-4, -3, -2, -1].flatMap((offset, i) => [
         { id: `e2e-spending-nf${i}`, accountId: CHECKING_ID, externalId: `e2e-nf${i}`, postedAt: monthDay(offset, 12), amount: -15.49, description: "NETFLIX.COM 866-579-7172", cspBucket: "UNCATEGORIZED" as const, isTransfer: false, transferPairId: null },
         { id: `e2e-spending-rent${i}`, accountId: CHECKING_ID, externalId: `e2e-rent${i}`, postedAt: monthDay(offset, 3), amount: -1800, description: "OAKWOOD APARTMENTS RENT", cspBucket: "UNCATEGORIZED" as const, isTransfer: false, transferPairId: null },
+      ]),
+      // Semi-monthly paycheck-like deposit stream (1st & 15th, past months
+      // only) for the Income Proposal path: $2,750 × 2/mo -> $5,500/mo.
+      ...[-3, -2, -1].flatMap((offset, i) => [
+        { id: `e2e-spending-pay${i}a`, accountId: CHECKING_ID, externalId: `e2e-pay${i}a`, postedAt: monthDay(offset, 1), amount: 2750, description: "ACME CORP DES:PAYROLL 001", cspBucket: "UNCATEGORIZED" as const, isTransfer: false, transferPairId: null },
+        { id: `e2e-spending-pay${i}b`, accountId: CHECKING_ID, externalId: `e2e-pay${i}b`, postedAt: monthDay(offset, 15), amount: 2750, description: "ACME CORP DES:PAYROLL 001", cspBucket: "UNCATEGORIZED" as const, isTransfer: false, transferPairId: null },
       ]),
     ];
 

@@ -132,4 +132,20 @@ test("linked path: confidence-tiered Proposals on fixed-costs and debts steps", 
   // The confirmed Debt lands in the debts list with the feed-owned balance.
   await expect(page.getByText("Total Debt")).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText("E2E Card").first()).toBeVisible();
+
+  // --- Income Proposals: always individually confirmed, never bundled.
+  await page.goto("/flow/income");
+  await expect(
+    page.getByText("Income found in your linked accounts")
+  ).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText("Acme Corp Des Payroll")).toBeVisible();
+  await expect(page.getByText("$5,500/mo")).toBeVisible();
+  await expect(page.getByText("Deposit evidence (6 seen)")).toBeVisible();
+  // No confirm-all exists for income, by design.
+  await expect(page.getByRole("button", { name: /Confirm all/ })).toHaveCount(0);
+
+  // Confirmed income feeds the CSP machinery like typed income:
+  // $6,000 existing + $5,500 derived = $11,500 effective monthly.
+  await page.getByRole("button", { name: "Confirm income" }).click();
+  await expect(page.getByText("$11,500/mo")).toBeVisible({ timeout: 15_000 });
 });

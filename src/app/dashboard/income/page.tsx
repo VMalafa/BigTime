@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { IncomeEntryForm } from "@/components/flow/IncomeEntryForm";
 import { BonusEntryForm } from "@/components/flow/BonusEntryForm";
+import { IncomeProposalsPanel } from "@/components/proposals/IncomeProposalsPanel";
 import { formatCurrency } from "@/lib/utils/format";
 
 export default function IncomeDashboardPage() {
@@ -71,6 +72,12 @@ export default function IncomeDashboardPage() {
           </div>
         </div>
       </Card>
+
+      {/* Income Proposals from linked accounts — always individually
+          confirmed; income moves every CSP percentage. */}
+      <div className="mb-8">
+        <IncomeProposalsPanel />
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <section>

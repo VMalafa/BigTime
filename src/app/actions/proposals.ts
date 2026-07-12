@@ -13,7 +13,9 @@ import { detectRecurringPatterns } from "@/lib/recurring/pattern-engine";
 import {
   buildDebtProposals,
   buildFixedCostProposals,
+  buildIncomeProposals,
   type DebtProposal,
+  type IncomeProposal,
   type TieredFixedCostProposals,
 } from "@/lib/proposals/proposals";
 import { isCspBucket } from "@/lib/categorization/corrections";
@@ -32,6 +34,8 @@ export interface FlowProposals {
   linked: boolean;
   fixedCosts: TieredFixedCostProposals;
   debts: DebtProposal[];
+  /** Always individually confirmed — income moves every CSP percentage. */
+  income: IncomeProposal[];
 }
 
 /** Proposals for the flow's fixed-costs and debts steps. Empty (and
@@ -41,6 +45,7 @@ export async function getFlowProposals(): Promise<FlowProposals> {
     linked: false,
     fixedCosts: { confirmAll: [], individual: [] },
     debts: [],
+    income: [],
   };
   const user = await requireUser();
   if (!user) return empty;
@@ -98,6 +103,9 @@ export async function getFlowProposals(): Promise<FlowProposals> {
   const decidedAccounts = new Set(
     decisions.filter((d) => d.kind === "DEBT").map((d) => d.key)
   );
+  const decidedIncomePatterns = new Set(
+    decisions.filter((d) => d.kind === "INCOME").map((d) => d.key)
+  );
   const monthlyIncomeCents = Math.round(
     profiles
       .flatMap((p) => p.incomeSources)
@@ -106,9 +114,23 @@ export async function getFlowProposals(): Promise<FlowProposals> {
   const existingLineItemNames = profiles
     .flatMap((p) => p.spendingPlan?.fixedCostLineItems ?? [])
     .map((i) => i.name);
+  const existingIncomeNames = profiles
+    .flatMap((p) => p.incomeSources)
+    .map((s) => s.name);
+  const transactionsById = new Map(
+    transactions.map((t) => [
+      t.id,
+      { postedAt: t.postedAt, amountCents: Math.round(Number(t.amount) * 100) },
+    ])
+  );
 
   return {
     linked: true,
+    income: buildIncomeProposals(patterns, {
+      decidedPatterns: decidedIncomePatterns,
+      existingIncomeNames,
+      transactionsById,
+    }),
     fixedCosts: buildFixedCostProposals(patterns, {
       monthlyIncomeCents,
       decidedPatterns,
@@ -188,9 +210,32 @@ export async function confirmFixedCostProposals(
   return { ok: true };
 }
 
+/** Remembers an income confirmation; the IncomeSource itself is added
+ * client-side through the flow store like typed income, so it feeds the
+ * CSP suggested-percent machinery identically. */
+export async function confirmIncomeProposal(
+  merchantPattern: string
+): Promise<{ ok?: boolean; error?: string }> {
+  const user = await requireUser();
+  if (!user) return { error: "Not signed in." };
+  await prisma.proposalDecision.upsert({
+    where: {
+      userId_kind_key: { userId: user.id, kind: "INCOME", key: merchantPattern },
+    },
+    update: { decision: "CONFIRMED" },
+    create: {
+      userId: user.id,
+      kind: "INCOME",
+      key: merchantPattern,
+      decision: "CONFIRMED",
+    },
+  });
+  return { ok: true };
+}
+
 /** Remembers a dismissal — the same Proposal is never raised twice. */
 export async function dismissProposal(
-  kind: "FIXED_COST" | "DEBT",
+  kind: "FIXED_COST" | "DEBT" | "INCOME",
   key: string
 ): Promise<{ ok?: boolean; error?: string }> {
   const user = await requireUser();

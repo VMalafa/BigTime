@@ -148,6 +148,77 @@ export function buildFixedCostProposals(
   return { confirmAll, individual };
 }
 
+/** Income needs this much pattern confidence — reimbursement-style one-off
+ * or coincidental deposits never become Proposals. */
+export const INCOME_MIN_CONFIDENCE = 0.7;
+/** And at least this many observed deposits. */
+export const INCOME_MIN_OCCURRENCES = 3;
+
+export interface IncomeEvidenceItem {
+  postedAt: Date;
+  amountCents: number;
+}
+
+export interface IncomeProposal {
+  /** Stable Proposal key — the deposit stream's merchant pattern. */
+  merchantPattern: string;
+  name: string;
+  cadence: Cadence;
+  typicalAmountCents: number;
+  monthlyAmountCents: number;
+  confidence: number;
+  occurrences: number;
+  /** The deposit-stream evidence: most recent occurrences, newest first. */
+  evidence: IncomeEvidenceItem[];
+}
+
+/**
+ * Income Proposals from paycheck-like deposit streams. Income always sits
+ * in the individual-attention tier (it moves every CSP percentage) — this
+ * builder returns a flat list and there is deliberately no confirm-all
+ * shape for it. The confidence + occurrence gate keeps reimbursement-style
+ * deposits out.
+ */
+export function buildIncomeProposals(
+  patterns: RecurringPattern[],
+  options: {
+    decidedPatterns: Set<string>;
+    existingIncomeNames: string[];
+    /** Occurrence lookup for evidence (postedAt/amount per transaction id). */
+    transactionsById: Map<string, IncomeEvidenceItem>;
+  }
+): IncomeProposal[] {
+  const existing = options.existingIncomeNames.map((n) => n.toUpperCase());
+  const proposals: IncomeProposal[] = [];
+
+  for (const pattern of patterns) {
+    if (pattern.direction !== "deposit") continue;
+    if (pattern.confidence < INCOME_MIN_CONFIDENCE) continue;
+    if (pattern.occurrences < INCOME_MIN_OCCURRENCES) continue;
+    if (options.decidedPatterns.has(pattern.merchantPattern)) continue;
+    if (existing.some((name) => pattern.merchantPattern.includes(name))) continue;
+
+    const evidence = pattern.transactionIds
+      .map((id) => options.transactionsById.get(id))
+      .filter((item): item is IncomeEvidenceItem => item !== undefined)
+      .sort((a, b) => b.postedAt.getTime() - a.postedAt.getTime())
+      .slice(0, 4);
+
+    proposals.push({
+      merchantPattern: pattern.merchantPattern,
+      name: titleCase(pattern.merchantPattern),
+      cadence: pattern.cadence,
+      typicalAmountCents: pattern.typicalAmountCents,
+      monthlyAmountCents: monthlyAmountCents(pattern),
+      confidence: pattern.confidence,
+      occurrences: pattern.occurrences,
+      evidence,
+    });
+  }
+
+  return proposals.sort((a, b) => b.monthlyAmountCents - a.monthlyAmountCents);
+}
+
 export interface DebtProposalAccount {
   id: string;
   name: string;

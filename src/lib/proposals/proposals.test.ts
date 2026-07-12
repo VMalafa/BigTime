@@ -3,8 +3,10 @@ import type { RecurringPattern } from "../recurring/pattern-engine.ts";
 import {
   buildDebtProposals,
   buildFixedCostProposals,
+  buildIncomeProposals,
   guessFixedCostCategory,
   monthlyAmountCents,
+  INCOME_MIN_CONFIDENCE,
 } from "./proposals.ts";
 
 function pattern(overrides: Partial<RecurringPattern> = {}): RecurringPattern {
@@ -100,6 +102,74 @@ describe("buildFixedCostProposals — tiering per the Proposal glossary", () => 
     );
     expect(tiers.confirmAll).toHaveLength(0);
     expect(tiers.individual).toHaveLength(0);
+  });
+});
+
+describe("buildIncomeProposals", () => {
+  const baseOptions = {
+    decidedPatterns: NO_DECISIONS,
+    existingIncomeNames: [],
+    transactionsById: new Map([
+      ["p1", { postedAt: new Date("2026-06-26"), amountCents: 250_000 }],
+      ["p2", { postedAt: new Date("2026-07-10"), amountCents: 250_000 }],
+    ]),
+  };
+  const paycheck = pattern({
+    merchantPattern: "ACME CORP DES PAYROLL",
+    direction: "deposit",
+    cadence: "BIWEEKLY",
+    typicalAmountCents: 250_000,
+    occurrences: 6,
+    confidence: 0.95,
+    transactionIds: ["p1", "p2"],
+  });
+
+  it("proposes paycheck-like streams with correct monthly normalization", () => {
+    const [proposal] = buildIncomeProposals([paycheck], baseOptions);
+    // Biweekly: ×26/12
+    expect(proposal.monthlyAmountCents).toBe(Math.round((250_000 * 26) / 12));
+    expect(proposal.cadence).toBe("BIWEEKLY");
+    // Evidence carries the deposit stream, newest first.
+    expect(proposal.evidence[0].postedAt.toISOString()).toContain("2026-07-10");
+    expect(proposal.evidence).toHaveLength(2);
+  });
+
+  it("is a flat individual list — there is no confirm-all shape for income", () => {
+    const result = buildIncomeProposals([paycheck], baseOptions);
+    expect(Array.isArray(result)).toBe(true);
+    expect(result).not.toHaveProperty("confirmAll");
+  });
+
+  it("gates out reimbursement-style deposits by confidence and count", () => {
+    // Coincidental deposits: pattern-shaped but low confidence.
+    const coincidence = pattern({
+      ...paycheck,
+      confidence: INCOME_MIN_CONFIDENCE - 0.05,
+    });
+    expect(buildIncomeProposals([coincidence], baseOptions)).toHaveLength(0);
+
+    // Two matching deposits a year apart (annual pattern) — too few to call income.
+    const twoOff = pattern({ ...paycheck, cadence: "ANNUAL", occurrences: 2 });
+    expect(buildIncomeProposals([twoOff], baseOptions)).toHaveLength(0);
+
+    // Charges never become income Proposals.
+    const charge = pattern({ ...paycheck, direction: "charge" });
+    expect(buildIncomeProposals([charge], baseOptions)).toHaveLength(0);
+  });
+
+  it("remembers decisions and skips income already on the plan", () => {
+    expect(
+      buildIncomeProposals([paycheck], {
+        ...baseOptions,
+        decidedPatterns: new Set(["ACME CORP DES PAYROLL"]),
+      })
+    ).toHaveLength(0);
+    expect(
+      buildIncomeProposals([paycheck], {
+        ...baseOptions,
+        existingIncomeNames: ["Acme Corp"],
+      })
+    ).toHaveLength(0);
   });
 });
 
