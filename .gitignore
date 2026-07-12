@@ -18,6 +18,9 @@
 # categorization batch working files
 categorize-mapping*.json
 
+# prompt-eval working files (generated on Claude Code, scored locally)
+prompt-eval-outputs*.json
+
 # next.js
 /.next/
 /out/
