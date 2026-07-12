@@ -75,17 +75,17 @@ function SignupForm() {
                 label="Password"
                 name="password"
                 type="password"
-                placeholder="Create a password"
+                placeholder="Create a passphrase"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                helperText="At least 8 characters"
+                helperText="At least 12 characters — a passphrase of a few random words works great"
               />
 
               <Button
                 type="submit"
                 variant="primary"
-                disabled={pending || password.length < 8}
+                disabled={pending || password.length < 12}
                 className="w-full mt-2"
               >
                 {pending ? "Creating account..." : "Create Account"}

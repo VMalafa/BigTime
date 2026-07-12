@@ -8,33 +8,35 @@ datasource db {
 }
 
 model User {
-  id              String           @id @default(uuid())
-  email           String           @unique
-  name            String?
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  profiles        Profile[]
-  wholenessScore  WholenessScore?
-  automationItems AutomationItem[]
-  checkIns        CheckIn[]
-  creditPlan      CreditPlan?
+  id                    String                 @id @default(uuid())
+  email                 String                 @unique
+  name                  String?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  profiles              Profile[]
+  wholenessScore        WholenessScore?
+  automationItems       AutomationItem[]
+  checkIns              CheckIn[]
+  creditPlan            CreditPlan?
+  aggregatorConnections AggregatorConnection[]
 }
 
 model Profile {
-  id            String         @id @default(uuid())
-  userId        String
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name          String
-  isDefault     Boolean        @default(false)
-  moneyType     MoneyType?
-  moneyScripts  MoneyScript[]
-  debts         Debt[]
-  incomeSources IncomeSource[]
-  bonusItems    BonusItem[]
-  spendingPlan  SpendingPlan?
-  moneyDials    MoneyDial[]
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id             String          @id @default(uuid())
+  userId         String
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name           String
+  isDefault      Boolean         @default(false)
+  moneyType      MoneyType?
+  moneyScripts   MoneyScript[]
+  debts          Debt[]
+  incomeSources  IncomeSource[]
+  bonusItems     BonusItem[]
+  spendingPlan   SpendingPlan?
+  moneyDials     MoneyDial[]
+  linkedAccounts LinkedAccount[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 
   @@index([userId])
 }
@@ -60,18 +62,20 @@ model MoneyScript {
 }
 
 model Debt {
-  id             String   @id @default(uuid())
+  id             String         @id @default(uuid())
   profileId      String
-  profile        Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  profile        Profile        @relation(fields: [profileId], references: [id], onDelete: Cascade)
   name           String
-  balance        Decimal  @db.Decimal(12, 2)
-  apr            Decimal  @db.Decimal(5, 3)
-  minimumPayment Decimal  @db.Decimal(10, 2)
+  balance        Decimal        @db.Decimal(12, 2)
+  apr            Decimal        @db.Decimal(5, 3)
+  minimumPayment Decimal        @db.Decimal(10, 2)
   debtType       DebtType
-  creditLimit    Decimal? @db.Decimal(12, 2)
-  isShared       Boolean  @default(false)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  creditLimit    Decimal?       @db.Decimal(12, 2)
+  isShared       Boolean        @default(false)
+  // When set, this Debt is mapped to a feed account and the feed owns its balance.
+  linkedAccount  LinkedAccount?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
   @@index([profileId])
 }
@@ -220,18 +224,18 @@ model AutomationItem {
 }
 
 model CreditPlan {
-  id                   String   @id @default(uuid())
-  userId               String   @unique
-  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  currentScore         Int?
-  targetScore          Int?
-  targetUtilization    Int      @default(10)
-  monitoringEnrolled   Boolean  @default(false)
-  autopayAllAccounts   Boolean  @default(false)
-  frozenBureaus        Boolean  @default(false)
-  notes                String?
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  id                 String   @id @default(uuid())
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currentScore       Int?
+  targetScore        Int?
+  targetUtilization  Int      @default(10)
+  monitoringEnrolled Boolean  @default(false)
+  autopayAllAccounts Boolean  @default(false)
+  frozenBureaus      Boolean  @default(false)
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 }
 
 enum AutomationCategory {
@@ -240,6 +244,85 @@ enum AutomationCategory {
   INVESTMENT_TRANSFER
   CREDIT_PROTECTION
   CREDIT_MONITORING
+}
+
+// ---------------------------------------------------------------------------
+// Account aggregation (ADR-0001 / ADR-0002)
+//
+// The app never stores bank credentials. An AggregatorConnection holds only a
+// revocable, read-only access secret, encrypted app-side with AES-256-GCM
+// under a key that lives exclusively in the AGGREGATOR_TOKEN_KEY env var —
+// database contents alone can never reach a bank feed.
+// ---------------------------------------------------------------------------
+
+enum ConnectionStatus {
+  ACTIVE
+  ERROR
+  REVOKED
+}
+
+enum LinkedAccountType {
+  CHECKING
+  SAVINGS
+  CREDIT_CARD
+  LOAN
+  INVESTMENT
+  OTHER
+}
+
+model AggregatorConnection {
+  id                    String           @id @default(uuid())
+  userId                String
+  user                  User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider              String // "SIMPLEFIN"
+  encryptedAccessSecret String // iv.authTag.ciphertext, base64-joined
+  status                ConnectionStatus @default(ACTIVE)
+  lastSyncAt            DateTime?
+  lastSyncError         String?
+  linkedAccounts        LinkedAccount[]
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+
+  @@index([userId])
+}
+
+model LinkedAccount {
+  id             String               @id @default(uuid())
+  connectionId   String
+  connection     AggregatorConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  externalId     String // provider's account id
+  name           String
+  institution    String
+  accountType    LinkedAccountType
+  maskedNumber   String? // provider-masked identifier only; full numbers are never stored
+  currentBalance Decimal              @db.Decimal(12, 2)
+  balanceAsOf    DateTime
+  currency       String               @default("USD")
+  profileId      String? // owner profile; null = household/shared
+  profile        Profile?             @relation(fields: [profileId], references: [id], onDelete: SetNull)
+  mappedDebtId   String?              @unique // Mapping: feed owns this Debt's balance
+  mappedDebt     Debt?                @relation(fields: [mappedDebtId], references: [id], onDelete: SetNull)
+  transactions   FeedTransaction[]
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  @@unique([connectionId, externalId])
+}
+
+model FeedTransaction {
+  id              String        @id @default(uuid())
+  linkedAccountId String
+  linkedAccount   LinkedAccount @relation(fields: [linkedAccountId], references: [id], onDelete: Cascade)
+  externalId      String
+  postedAt        DateTime
+  amount          Decimal       @db.Decimal(12, 2) // signed; negative = money out
+  description     String
+  pending         Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([linkedAccountId, externalId])
+  @@index([linkedAccountId, postedAt])
 }
 
 model CheckIn {

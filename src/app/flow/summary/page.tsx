@@ -116,12 +116,6 @@ export default function SummaryPage() {
 
   const sectionDelay = 0.1;
 
-  function AuthAwareCTA() {
-    if (authLoading) return null;
-    if (isAuthenticated) return <AddPartnerPrompt />;
-    return <SavePrompt />;
-  }
-
   return (
     <StepWrapper
       title="Your Rich Life Plan"
@@ -308,7 +302,7 @@ export default function SummaryPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: sectionDelay * 7, duration: 0.4 }}
         >
-          <AuthAwareCTA />
+          {!authLoading && (isAuthenticated ? <AddPartnerPrompt /> : <SavePrompt />)}
         </motion.section>
       </div>
 
