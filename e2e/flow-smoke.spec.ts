@@ -1,5 +1,26 @@
 import { expect, test } from "@playwright/test";
 
+// The onboarding fork renders after the money-type step; "I'll type it in"
+// is the manual path, unchanged: it lands on /flow/debts exactly as the
+// pre-fork Continue did.
+test("onboarding fork after money type; manual path continues to debts", async ({
+  page,
+}) => {
+  await page.goto("/flow/money-type");
+  await page.getByText("The Optimizer").click();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+
+  await expect(page).toHaveURL(/\/flow\/link-accounts/);
+  await expect(
+    page.getByText("Link your accounts and we'll fill in the rest")
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Link accounts" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Continue typing it in" }).click();
+  await expect(page).toHaveURL(/\/flow\/debts/);
+  await expect(page.getByText("Let's see the full picture")).toBeVisible();
+});
+
 // Smoke test for the anonymous Conscious Spending Plan flow:
 // income -> fixed costs -> spending plan. State lives in localStorage only,
 // so no auth or database is required.

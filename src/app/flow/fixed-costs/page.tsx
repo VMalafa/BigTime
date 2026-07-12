@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { StepWrapper } from "@/components/flow/StepWrapper";
 import { FlowNavigation } from "@/components/flow/FlowNavigation";
 import { FixedCostForm } from "@/components/flow/FixedCostForm";
+import { FixedCostProposalsPanel } from "@/components/proposals/FixedCostProposalsPanel";
 import { FixedCostLineItemList } from "@/components/flow/FixedCostLineItemList";
 import { RealityCheckCard } from "@/components/flow/RealityCheckCard";
 import {
@@ -44,6 +45,10 @@ export default function FixedCostsPage() {
       subtitle="List the monthly bills you have to pay. We'll use this to suggest a Fixed Costs bucket on the next step."
     >
       <div className="space-y-8">
+        {/* Proposals first (linked path); manual entry stays below for
+            whatever the feed missed. */}
+        <FixedCostProposalsPanel />
+
         <FixedCostForm
           key={editing?.id ?? "new"}
           editing={editing}

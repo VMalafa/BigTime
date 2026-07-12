@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { StepWrapper } from "@/components/flow/StepWrapper";
 import { FlowNavigation } from "@/components/flow/FlowNavigation";
 import { DebtEntryForm } from "@/components/flow/DebtEntryForm";
+import { DebtProposalsPanel } from "@/components/proposals/DebtProposalsPanel";
 import { DebtList } from "@/components/flow/DebtList";
 import { useFlowStore } from "@/lib/store/flow-store";
 import { formatCurrency } from "@/lib/utils/format";
@@ -47,6 +48,10 @@ export default function DebtsPage() {
       subtitle="No judgment. Debt isn't a moral failing — it's a tool that sometimes needs restructuring."
     >
       <div className="space-y-8">
+        {/* Debt Proposals from mappable Linked Accounts (linked path);
+            manual entry stays below for whatever the feed missed. */}
+        <DebtProposalsPanel />
+
         <DebtEntryForm />
 
         {debts.length === 0 && (

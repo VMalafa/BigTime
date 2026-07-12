@@ -79,9 +79,57 @@ test("spending page: plan vs actual, honest chip, Transfers excluded", async ({
     page.getByText("1 transaction not yet categorized ($45)")
   ).toBeVisible({ timeout: 15_000 });
 
-  // Month picker: the previous month has no fixture data and the chip
+  // Month picker: the next (future) month has no data and the chip
   // disappears only because the count is genuinely zero.
-  await page.getByRole("link", { name: "Previous month" }).click();
+  await page.getByRole("link", { name: "Next month" }).click();
   await expect(page.getByText("No feed transactions this month.")).toBeVisible();
   await expect(page.getByText("not yet categorized")).toHaveCount(0);
+});
+
+test("linked path: confidence-tiered Proposals on fixed-costs and debts steps", async ({
+  page,
+}) => {
+  await page.goto("/auth/login");
+  await page.getByLabel("Email").fill(E2E_SPENDING_EMAIL);
+  await page.getByLabel("Password").fill(e2eSpendingPassword());
+  await page.getByRole("button", { name: "Sign In", exact: true }).click();
+  await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 });
+
+  // --- Fixed-cost Proposals, tiered per the Proposal glossary entry.
+  await page.goto("/flow/fixed-costs");
+  await expect(
+    page.getByText("Proposals from your linked accounts")
+  ).toBeVisible({ timeout: 20_000 });
+
+  // Netflix: clear-cut monthly subscription -> confirm-all tier.
+  await expect(page.getByText("Netflix Com")).toBeVisible();
+  // Rent: $1,800/mo on $6,000 income -> plan-moving, individual tier.
+  await expect(page.getByText("Big enough to move the plan")).toBeVisible();
+
+  // Confirm-all creates real line items (visible in the list below).
+  await page.getByRole("button", { name: /Confirm all/ }).click();
+  await expect(
+    page.getByText("Netflix Com").first()
+  ).toBeVisible();
+
+  // Dismissal is remembered: dismiss the rent Proposal, reload, gone.
+  await page.getByRole("button", { name: "Dismiss", exact: true }).click();
+  await page.reload();
+  await expect(page.getByText("What's actually locked in?")).toBeVisible();
+  await expect(page.getByText("Big enough to move the plan")).toHaveCount(0);
+
+  // --- Debt Proposals: unmapped credit-card account, APR + minimum only.
+  await page.goto("/flow/debts");
+  await expect(
+    page.getByText("Debts found in your linked accounts")
+  ).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText("balance $350 (from the feed)")).toBeVisible();
+
+  await page.getByLabel("APR (%)").fill("24.99");
+  await page.getByLabel("Minimum payment").fill("35");
+  await page.getByRole("button", { name: "Confirm Debt" }).click();
+
+  // The confirmed Debt lands in the debts list with the feed-owned balance.
+  await expect(page.getByText("Total Debt")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText("E2E Card").first()).toBeVisible();
 });

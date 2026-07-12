@@ -16,7 +16,9 @@ export default function MoneyTypePage() {
 
   const handleNext = () => {
     setCurrentStep(2);
-    router.push("/flow/debts");
+    // Onboarding fork: link accounts (the feed drafts Proposals) or type it
+    // in (the unchanged manual path).
+    router.push("/flow/link-accounts");
   };
 
   const handleBack = () => {

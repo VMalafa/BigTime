@@ -66,6 +66,18 @@ export default async function globalSetup() {
   const prisma = new PrismaClient();
 
   try {
+    // Reset fixture-household state accumulated by earlier E2E runs so every
+    // run starts identical. Scoped strictly to the fixture user's rows —
+    // never touches real household data.
+    await prisma.proposalDecision.deleteMany({ where: { userId: authUserId } });
+    await prisma.categoryRule.deleteMany({ where: { userId: authUserId } });
+    await prisma.debt.deleteMany({
+      where: { profile: { id: PROFILE_ID } },
+    }); // unmaps the fixture card via onDelete: SetNull
+    await prisma.fixedCostLineItem.deleteMany({
+      where: { spendingPlan: { profileId: PROFILE_ID } },
+    });
+
     await prisma.user.upsert({
       where: { id: authUserId },
       update: {},
@@ -134,6 +146,8 @@ export default async function globalSetup() {
     const now = new Date();
     const day = (d: number) =>
       new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), d, 12));
+    const monthDay = (monthOffset: number, d: number) =>
+      new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + monthOffset, d, 12));
 
     for (const account of [
       { id: CHECKING_ID, externalId: "e2e-checking", name: "E2E Checking", accountType: "CHECKING" as const, balance: 4200 },
@@ -168,6 +182,14 @@ export default async function globalSetup() {
       { id: "e2e-spending-t7", accountId: CARD_ID, externalId: "e2e-t7", postedAt: day(8), amount: 400, description: "E2E PAYMENT RECEIVED", cspBucket: "UNCATEGORIZED" as const, isTransfer: true, transferPairId: "e2e-spending-t6" },
       { id: "e2e-spending-t8", accountId: CHECKING_ID, externalId: "e2e-t8", postedAt: day(9), amount: -60, description: "MYSTERY MERCHANT 4821", cspBucket: "UNCATEGORIZED" as const, isTransfer: false, transferPairId: null },
       { id: "e2e-spending-t9", accountId: CARD_ID, externalId: "e2e-t9", postedAt: day(10), amount: -45, description: "SQ *CORNER STORE", cspBucket: "UNCATEGORIZED" as const, isTransfer: false, transferPairId: null },
+      // Recurring history for the onboarding-Proposals path: a monthly
+      // subscription (clear-cut -> confirm-all tier) and monthly rent
+      // (plan-moving -> individual tier). Past months only, so the
+      // current-month spending assertions stay untouched.
+      ...[-4, -3, -2, -1].flatMap((offset, i) => [
+        { id: `e2e-spending-nf${i}`, accountId: CHECKING_ID, externalId: `e2e-nf${i}`, postedAt: monthDay(offset, 12), amount: -15.49, description: "NETFLIX.COM 866-579-7172", cspBucket: "UNCATEGORIZED" as const, isTransfer: false, transferPairId: null },
+        { id: `e2e-spending-rent${i}`, accountId: CHECKING_ID, externalId: `e2e-rent${i}`, postedAt: monthDay(offset, 3), amount: -1800, description: "OAKWOOD APARTMENTS RENT", cspBucket: "UNCATEGORIZED" as const, isTransfer: false, transferPairId: null },
+      ]),
     ];
 
     for (const t of transactions) {

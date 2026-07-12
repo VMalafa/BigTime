@@ -21,6 +21,7 @@ model User {
   creditPlan            CreditPlan?
   aggregatorConnections AggregatorConnection[]
   categoryRules         CategoryRule[]
+  proposalDecisions     ProposalDecision[]
 }
 
 model Profile {
@@ -392,6 +393,36 @@ enum CategoryRuleSource {
   CORRECTION
   BATCH
   SEED
+}
+
+// A household's answer to a Proposal (CONTEXT.md): feed-derived drafts are
+// never plan data until confirmed, and a dismissal is remembered so the
+// same Proposal is never raised twice.
+enum ProposalKind {
+  FIXED_COST
+  DEBT
+  INCOME
+}
+
+enum ProposalDecisionValue {
+  CONFIRMED
+  DISMISSED
+}
+
+model ProposalDecision {
+  id       String                @id @default(uuid())
+  userId   String
+  user     User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind     ProposalKind
+  // Merchant pattern for fixed-cost/income Proposals; LinkedAccount id for
+  // Debt Proposals.
+  key      String
+  decision ProposalDecisionValue
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, kind, key])
 }
 
 model CheckIn {
