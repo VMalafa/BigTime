@@ -20,6 +20,12 @@ import {
   CorrectableTransactionList,
   type CorrectableRow,
 } from "@/components/spending/CorrectableTransactionList";
+import {
+  computeDialShares,
+  dialName,
+  selectDriftCallout,
+  DIAL_DRIFT_MIN_TRANSACTIONS,
+} from "@/lib/spending/dial-drift";
 
 // "Where is the money going" — reflective view on calendar months
 // (ADR-0003; Pay Periods power the live heartbeat, not this page).
@@ -89,7 +95,7 @@ export default async function SpendingPage({
   const [profiles, feedRows] = await Promise.all([
     prisma.profile.findMany({
       where: { userId: user.id },
-      include: { spendingPlan: true, incomeSources: true },
+      include: { spendingPlan: true, incomeSources: true, moneyDials: true },
     }),
     prisma.feedTransaction.findMany({
       where: {
@@ -155,6 +161,23 @@ export default async function SpendingPage({
   const prevKey = shiftMonthKey(monthKey, -1);
   const nextKey = shiftMonthKey(monthKey, 1);
   const barWidth = (percent: number) => `${Math.min(100, Math.max(0, percent))}%`;
+
+  // Dial Drift: importance comes from the plan profile's Money Dials; the
+  // actual shares come from this month's guilt-free spending.
+  const dialProfile =
+    profiles.find((p) => p.isDefault) ?? profiles.find((p) => p.moneyDials.length > 0);
+  const importanceByDial = Object.fromEntries(
+    (dialProfile?.moneyDials ?? []).map((d) => [d.category as string, d.level])
+  );
+  const dialBreakdown = computeDialShares(
+    rows
+      .filter((r) => !r.isTransfer && r.cspBucket === "GUILT_FREE")
+      .map((r) => ({ amountCents: r.amountCents, moneyDial: r.moneyDial }))
+  );
+  const driftCallout = selectDriftCallout(dialBreakdown, importanceByDial);
+  const driftSuppressed =
+    dialBreakdown.dialedTransactionCount > 0 &&
+    dialBreakdown.dialedTransactionCount < DIAL_DRIFT_MIN_TRANSACTIONS;
 
   return (
     <div>
@@ -238,6 +261,60 @@ export default async function SpendingPage({
                   />
                 </div>
               </div>
+
+              {bucket.bucket === "GUILT_FREE" && (
+                <div className="mt-3">
+                  {driftCallout && (
+                    <div className="rounded-md border border-accent-gold/40 bg-accent-gold/5 px-4 py-3 mb-2">
+                      <p className="font-sans text-sm text-text-primary">
+                        <span className="font-medium">Dial Drift:</span>{" "}
+                        {driftCallout.sentence}
+                      </p>
+                      <p className="font-sans text-sm text-text-secondary mt-1">
+                        {driftCallout.nextAction}
+                      </p>
+                    </div>
+                  )}
+                  {driftSuppressed && (
+                    <p className="font-sans text-xs text-text-secondary mb-2">
+                      Dial Drift needs at least {DIAL_DRIFT_MIN_TRANSACTIONS}{" "}
+                      dial-categorized guilt-free transactions this month to
+                      read honestly — not there yet.
+                    </p>
+                  )}
+                  {dialBreakdown.totalCents > 0 && (
+                    <details>
+                      <summary className="cursor-pointer font-sans text-xs text-text-secondary hover:text-text-primary">
+                        Money Dials — where guilt-free actually went
+                      </summary>
+                      <ul className="mt-2 space-y-1">
+                        {dialBreakdown.shares.map((share) => (
+                          <li
+                            key={share.dial ?? "no-dial"}
+                            className="flex items-baseline justify-between font-sans text-xs"
+                          >
+                            <span className="text-text-primary">
+                              {share.dial === null
+                                ? "No Money Dial yet"
+                                : dialName(share.dial)}
+                              {share.dial !== null && (
+                                <span className="text-text-secondary">
+                                  {" "}
+                                  · importance {importanceByDial[share.dial] ?? 5}/10
+                                </span>
+                              )}
+                            </span>
+                            <span className="text-text-secondary">
+                              {formatPercent(share.sharePercent)} (
+                              {formatCurrency(share.actualCents / 100)})
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>

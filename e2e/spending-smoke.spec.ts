@@ -57,6 +57,17 @@ test("spending page: plan vs actual, honest chip, Transfers excluded", async ({
   const transfersSection = page.getByRole("region", { name: "Transfers" });
   await expect(transfersSection.getByText("E2E PAYMENT TO CARD")).toBeVisible();
 
+  // Dial Drift: with a single dial-categorized guilt-free transaction the
+  // callout is honestly suppressed, and the breakdown reconciles (100% to
+  // Food & Dining).
+  await expect(page.getByText("Dial Drift needs at least")).toBeVisible();
+  await page
+    .getByText("Money Dials — where guilt-free actually went")
+    .click();
+  await expect(
+    page.getByText("Food & Dining · importance 5/10")
+  ).toBeVisible();
+
   // Inline Correction: recategorize an uncategorized merchant; the honest
   // chip recounts (only SQ *CORNER STORE, $45, remains) and a standing rule
   // is created for the merchant.
