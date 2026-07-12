@@ -15,6 +15,9 @@
 /test-results/
 /playwright-report/
 
+# categorization batch working files
+categorize-mapping*.json
+
 # next.js
 /.next/
 /out/
