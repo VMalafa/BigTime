@@ -1,9 +1,7 @@
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
-import test, { beforeEach } from "node:test";
+import { beforeEach, test } from "vitest";
 
-// Extension required: these tests run directly under `node --test` (see the
-// `test` script), which strips types but does not resolve extensionless paths.
 import { openSecret, sealSecret } from "./secret-box.ts";
 
 beforeEach(() => {
