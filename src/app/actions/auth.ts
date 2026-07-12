@@ -31,12 +31,18 @@ async function isSupabaseReachable(): Promise<boolean> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 3000);
-    const res = await fetch(`${url}/auth/v1/health`, {
+    // Hosted Supabase gates /auth/v1/* behind its API gateway, which 401s
+    // any request without an apikey header — including /health.
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    await fetch(`${url}/auth/v1/health`, {
       cache: "no-store",
       signal: controller.signal,
+      headers: anonKey ? { apikey: anonKey } : undefined,
     });
     clearTimeout(timeout);
-    return res.ok;
+    // Any HTTP response proves the host is up; a paused/offline project
+    // surfaces as a DNS error or timeout, not a status code.
+    return true;
   } catch {
     // DNS failure, timeout, or network error — treat as unreachable.
     return false;
