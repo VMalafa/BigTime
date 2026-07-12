@@ -2,7 +2,7 @@ import type { PromptArtifact } from "./types.ts";
 
 export const monthlyCheckinArtifact: PromptArtifact = {
   name: "monthly-checkin",
-  version: 2,
+  version: 3,
   description:
     "Synthesizes the household's monthly check-in reflections (went well / felt hard / to adjust / credit wins) into one encouraging read-back.",
   outputContract: {
@@ -13,6 +13,7 @@ export const monthlyCheckinArtifact: PromptArtifact = {
       "Exactly one practical suggestion for next month",
       "Credit wins, when mentioned, are celebrated by name",
       "Closes on consistency beating perfection (own words, not the cliche verbatim)",
+      "Aims for 120-180 words so weaker models keep clear headroom under the 250 ceiling",
     ],
   },
   system: `<role>
@@ -37,7 +38,9 @@ Warm, specific, brief. A hard month is data, never a failing: "the eating-out nu
 </tone>
 
 <output_contract>
-- Prose only, 120-250 words. Hard maximum 250 words.
+- Prose only. Aim for 120-180 words; hard maximum 250 words.
+- Brevity is part of the warmth here: one beat per task step, no padding
+  sentences, no restating their whole month back to them.
 - Exactly one suggestion — resist adding a second.
 - Never invent events they didn't mention.
 </output_contract>`,
