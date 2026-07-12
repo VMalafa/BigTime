@@ -57,6 +57,17 @@ test("spending page: plan vs actual, honest chip, Transfers excluded", async ({
   const transfersSection = page.getByRole("region", { name: "Transfers" });
   await expect(transfersSection.getByText("E2E PAYMENT TO CARD")).toBeVisible();
 
+  // Inline Correction: recategorize an uncategorized merchant; the honest
+  // chip recounts (only SQ *CORNER STORE, $45, remains) and a standing rule
+  // is created for the merchant.
+  await page.getByText("MYSTERY MERCHANT 4821").click();
+  await page.getByRole("button", { name: "Guilt-Free", exact: true }).click();
+  await page.getByRole("button", { name: "Convenience" }).click();
+  await page.getByRole("button", { name: "Save correction" }).click();
+  await expect(
+    page.getByText("1 transaction not yet categorized ($45)")
+  ).toBeVisible({ timeout: 15_000 });
+
   // Month picker: the previous month has no fixture data and the chip
   // disappears only because the count is genuinely zero.
   await page.getByRole("link", { name: "Previous month" }).click();

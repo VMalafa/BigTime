@@ -16,6 +16,10 @@ import {
   SPENDING_BUCKETS,
   type SpendingBucket,
 } from "@/lib/spending/month-summary";
+import {
+  CorrectableTransactionList,
+  type CorrectableRow,
+} from "@/components/spending/CorrectableTransactionList";
 
 // "Where is the money going" — reflective view on calendar months
 // (ADR-0003; Pay Periods power the live heartbeat, not this page).
@@ -44,33 +48,25 @@ function secondLevelLabel(row: TransactionRow): string | null {
   return null;
 }
 
-function TransactionList({ rows }: { rows: TransactionRow[] }) {
-  return (
-    <ul className="divide-y divide-bg-secondary">
-      {rows.map((row) => (
-        <li key={row.id} className="flex items-center justify-between gap-3 py-2.5">
-          <div className="min-w-0">
-            <p className="font-sans text-sm text-text-primary truncate">
-              {row.description}
-            </p>
-            <p className="text-xs text-text-secondary font-sans">
-              {row.postedAt.toLocaleDateString("en-US", {
-                month: "short",
-                day: "numeric",
-                timeZone: "UTC",
-              })}
-              {" · "}
-              {row.accountName}
-              {secondLevelLabel(row) ? ` · ${secondLevelLabel(row)}` : ""}
-            </p>
-          </div>
-          <p className="font-sans text-sm font-semibold text-text-primary shrink-0">
-            {formatCurrency(row.amountCents / 100)}
-          </p>
-        </li>
-      ))}
-    </ul>
-  );
+// Rows are handed to the client-side Correction picker pre-formatted.
+function toCorrectableRows(rows: TransactionRow[]): CorrectableRow[] {
+  return rows.map((row) => ({
+    id: row.id,
+    description: row.description,
+    metaLabel: [
+      row.postedAt.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        timeZone: "UTC",
+      }),
+      row.accountName,
+      secondLevelLabel(row),
+    ]
+      .filter(Boolean)
+      .join(" · "),
+    amountLabel: formatCurrency(row.amountCents / 100),
+    isTransfer: row.isTransfer,
+  }));
 }
 
 export default async function SpendingPage({
@@ -271,7 +267,7 @@ export default async function SpendingPage({
                 {BUCKET_LABELS[bucket]}
               </h2>
               <div className="rounded-lg bg-white border border-bg-secondary px-5 py-2">
-                <TransactionList rows={bucketRows} />
+                <CorrectableTransactionList rows={toCorrectableRows(bucketRows)} />
               </div>
             </section>
           );
@@ -287,7 +283,7 @@ export default async function SpendingPage({
               bucket yet. The next categorization batch will pick them up.
             </p>
             <div className="rounded-lg bg-white border border-warning/50 px-5 py-2">
-              <TransactionList rows={uncategorizedRows} />
+              <CorrectableTransactionList rows={toCorrectableRows(uncategorizedRows)} />
             </div>
           </section>
         )}
@@ -302,7 +298,7 @@ export default async function SpendingPage({
               and income.
             </p>
             <div className="rounded-lg bg-white border border-bg-secondary px-5 py-2 opacity-70">
-              <TransactionList rows={transferRows} />
+              <CorrectableTransactionList rows={toCorrectableRows(transferRows)} />
             </div>
           </section>
         )}
