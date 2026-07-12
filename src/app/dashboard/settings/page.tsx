@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 
@@ -20,6 +21,19 @@ export default function SettingsPage() {
             <span>Not set</span>
           </div>
         </div>
+      </Card>
+
+      <Card>
+        <h2 className="font-serif text-xl mb-4">Linked Accounts</h2>
+        <p className="text-text-secondary text-sm mb-4">
+          Connect read-only bank feeds so balances stay current on their own.
+          Protected by two-factor verification.
+        </p>
+        <Link href="/settings/connections">
+          <Button variant="secondary" size="sm">
+            Manage Connections
+          </Button>
+        </Link>
       </Card>
 
       <Card>

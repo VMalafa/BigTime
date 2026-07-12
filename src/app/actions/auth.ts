@@ -87,8 +87,13 @@ export async function signUp(formData: FormData) {
   if (!name || !email || !password) {
     return { error: "All fields are required." };
   }
-  if (password.length < 8) {
-    return { error: "Password must be at least 8 characters." };
+  // ADR-0002: one shared login guards the household's bank-linked data, so
+  // the password must be passphrase-strength.
+  if (password.length < 12) {
+    return {
+      error:
+        "Password must be at least 12 characters. Try a passphrase — a few random words is both stronger and easier to remember.",
+    };
   }
 
   const supabase = await createClient();

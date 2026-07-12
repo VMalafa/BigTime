@@ -29,11 +29,15 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Protect dashboard and partner routes
+  // Protect dashboard, partner, and settings routes. /settings/connections
+  // (bank data) is additionally gated on AAL2 by the page and every server
+  // action it calls — the proxy only guarantees "authenticated at all",
+  // since the connections page itself hosts the MFA enrollment/challenge UI.
   if (
     !user &&
     (request.nextUrl.pathname.startsWith("/dashboard") ||
-      request.nextUrl.pathname.startsWith("/partner"))
+      request.nextUrl.pathname.startsWith("/partner") ||
+      request.nextUrl.pathname.startsWith("/settings"))
   ) {
     const url = request.nextUrl.clone();
     url.pathname = "/auth/login";

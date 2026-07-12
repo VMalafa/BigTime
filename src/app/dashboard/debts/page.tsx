@@ -1,14 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useFlowStore, type DebtEntry } from "@/lib/store/flow-store";
+import { getMappedDebtCaptions } from "@/app/actions/aggregator";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { DebtPayoffChart } from "@/components/dashboard/DebtPayoffChart";
-import { formatCurrency, formatPercentExact } from "@/lib/utils/format";
+import { formatAsOf, formatCurrency, formatPercentExact } from "@/lib/utils/format";
 import Link from "next/link";
+
+// Sync caption for a Debt whose balance is feed-owned (see Mapping in
+// CONTEXT.md). Held in transient React state only — never persisted
+// client-side.
+interface SyncCaption {
+  institution: string;
+  balanceAsOf: string;
+}
 
 const debtTypeLabels: Record<string, string> = {
   CREDIT_CARD: "Credit Card",
@@ -42,7 +51,13 @@ function generatePayoffData(debt: DebtEntry): { month: number; balance: number }
   return data;
 }
 
-function DebtCard({ debt }: { debt: DebtEntry }) {
+function DebtCard({
+  debt,
+  syncCaption,
+}: {
+  debt: DebtEntry;
+  syncCaption?: SyncCaption;
+}) {
   const updateDebt = useFlowStore((s) => s.updateDebt);
   const [editing, setEditing] = useState(false);
   const [newBalance, setNewBalance] = useState(debt.balance.toString());
@@ -99,6 +114,25 @@ function DebtCard({ debt }: { debt: DebtEntry }) {
               <p className="text-text-secondary text-xs font-sans">
                 Current Balance
               </p>
+              {syncCaption ? (
+                // The feed owns this balance: read-only, with its freshness
+                // labeled (Honesty Rule) and an affordance to manage the link.
+                <div>
+                  <span className="font-serif text-2xl text-text-primary">
+                    {formatCurrency(debt.balance)}
+                  </span>
+                  <p className="text-text-secondary text-xs font-sans mt-0.5">
+                    Synced from {syncCaption.institution} ·{" "}
+                    {formatAsOf(syncCaption.balanceAsOf)} ·{" "}
+                    <Link
+                      href="/settings/connections"
+                      className="text-accent-gold hover:underline"
+                    >
+                      Manage
+                    </Link>
+                  </p>
+                </div>
+              ) : (
               <AnimatePresence mode="wait">
                 {editing ? (
                   <motion.div
@@ -148,6 +182,7 @@ function DebtCard({ debt }: { debt: DebtEntry }) {
                   </motion.div>
                 )}
               </AnimatePresence>
+              )}
             </div>
             <div>
               <p className="text-text-secondary text-xs font-sans">APR</p>
@@ -187,6 +222,30 @@ function DebtCard({ debt }: { debt: DebtEntry }) {
 export default function DebtsPage() {
   const debts = useFlowStore((s) => s.debts);
   const totalDebt = debts.reduce((sum, d) => sum + d.balance, 0);
+
+  // Which debts are feed-owned, fetched fresh per view (not persisted).
+  const [syncCaptions, setSyncCaptions] = useState<Record<string, SyncCaption>>({});
+  useEffect(() => {
+    let cancelled = false;
+    getMappedDebtCaptions()
+      .then((captions) => {
+        if (cancelled) return;
+        setSyncCaptions(
+          Object.fromEntries(
+            captions.map((c) => [
+              c.debtId,
+              { institution: c.institution, balanceAsOf: c.balanceAsOf },
+            ])
+          )
+        );
+      })
+      .catch(() => {
+        // Anonymous/offline sessions simply see the manual experience.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div>
@@ -241,7 +300,11 @@ export default function DebtsPage() {
 
           <div className="space-y-6">
             {debts.map((debt) => (
-              <DebtCard key={debt.id} debt={debt} />
+              <DebtCard
+                key={debt.id}
+                debt={debt}
+                syncCaption={syncCaptions[debt.id]}
+              />
             ))}
           </div>
 
