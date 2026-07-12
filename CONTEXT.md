@@ -28,10 +28,26 @@ _Avoid_: Entry, item
 The association between a Linked Account and a manual record (e.g., a Debt). Once mapped, the feed owns the balance; rarely-changing facts (APR, minimum payment, credit limit) stay manual.
 _Avoid_: Sync, merge
 
+**Categorization**:
+The two-level label on a Transaction: first a CSP bucket (Fixed Costs, Savings, Investments, Guilt-Free); then, within Guilt-Free, one Money Dial — or, within Fixed Costs, one fixed-cost category. The app never invents a third taxonomy; transactions speak the same language as the plan.
+_Avoid_: Tags, merchant category, budget category
+
+**Correction**:
+A household member reassigning a Transaction's Categorization. A Correction is never a one-off: it becomes a standing rule for that merchant, so the same mistake is never made twice.
+_Avoid_: Recategorize, override
+
+**Proposal**:
+A feed-derived draft entry (income source, fixed-cost line item, debt) awaiting ratification — never plan data until confirmed. Clear-cut Proposals are bundled into a single confirm-all; only ambiguous or plan-moving ones (income always; odd cadences; outsized amounts) ask for individual attention. The feed drafts, the human ratifies — and effort is spent only where being wrong would matter.
+_Avoid_: Suggestion (too weak), auto-import
+
+**Transfer**:
+Money moving between the household's own Linked Accounts — a credit-card payment from checking, a savings sweep. Detected as an opposite-amount pair and excluded from both spending and income. Card purchases are spending at the merchant when they happen; paying the card later is just a Transfer.
+_Avoid_: Payment (ambiguous), internal transaction
+
 ### Rhythm
 
 **Pay Period**:
-The span between one detected paycheck deposit (either partner's) and the next. One household heartbeat with one shared Safe-to-Spend; periods vary in length when two pay schedules interleave.
+The span between one detected paycheck deposit (either partner's) and the next. One household heartbeat with one shared Safe-to-Spend; periods vary in length when two pay schedules interleave. Pay Periods power the live heartbeat (Safe-to-Spend, Earmarks) only; reflective views of past spending (Dial Drift, "where did it go") run on calendar months.
 _Avoid_: Budget cycle, sprint
 
 **Earmark**:
