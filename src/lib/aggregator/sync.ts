@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { applyDeterministicCategorization } from "../categorization/apply.ts";
 import { AggregatorError } from "./provider.ts";
 import { openSecret } from "./secret-box.ts";
 import { getAggregatorProvider } from "./simplefin.ts";
@@ -120,6 +121,11 @@ export async function syncConnection(connectionId: string): Promise<SyncResult> 
       });
       transactionCount++;
     }
+
+    // Deterministic Categorization layers only (ADR-0003): Transfer pairing,
+    // mapped-Debt accounts, fixed-cost line items, the household rule table.
+    // No AI or network calls — unmatched transactions stay UNCATEGORIZED.
+    await applyDeterministicCategorization(prisma, connection.userId);
 
     await prisma.aggregatorConnection.update({
       where: { id: connection.id },

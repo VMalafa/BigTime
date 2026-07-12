@@ -20,6 +20,7 @@ model User {
   checkIns              CheckIn[]
   creditPlan            CreditPlan?
   aggregatorConnections AggregatorConnection[]
+  categoryRules         CategoryRule[]
 }
 
 model Profile {
@@ -319,11 +320,78 @@ model FeedTransaction {
   amount          Decimal       @db.Decimal(12, 2) // signed; negative = money out
   description     String
   pending         Boolean       @default(false)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+
+  // Categorization (ADR-0003): a two-level label in the plan's own
+  // vocabulary — CSP bucket first, then a Money Dial within Guilt-Free or a
+  // fixed-cost category within Fixed Costs. Never a third taxonomy.
+  // UNCATEGORIZED stays visible per the Honesty Rule.
+  cspBucket            CspBucket             @default(UNCATEGORIZED)
+  moneyDial            DialCategory? // second level, only within GUILT_FREE
+  fixedCostCategory    FixedCostCategory? // second level, only within FIXED_COSTS
+  categorizationSource CategorizationSource?
+
+  // Transfer pairing: the opposite-amount near-in-time leg on another of the
+  // household's own Linked Accounts. Transfers are excluded from both
+  // spending and income (accrual semantics — card purchases count at the
+  // merchant; paying the card later is just a Transfer).
+  // Pair integrity (each transaction in at most one pair) is enforced by the
+  // pairing code in src/lib/categorization — kept out of the DB so the schema
+  // change stays warning-free additive on the live database.
+  isTransfer     Boolean @default(false)
+  transferPairId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([linkedAccountId, externalId])
   @@index([linkedAccountId, postedAt])
+  @@index([linkedAccountId, cspBucket])
+  @@index([transferPairId])
+}
+
+// Which layer produced a Transaction's Categorization. Deterministic layers
+// (MAPPED_DEBT, FIXED_COST_MATCH, RULE) run during sync; CORRECTION and
+// BATCH are written by humans and the interval batch job respectively and
+// are never overwritten by sync.
+enum CategorizationSource {
+  MAPPED_DEBT
+  FIXED_COST_MATCH
+  RULE
+  CORRECTION
+  BATCH
+}
+
+// Level-1 Categorization: the four CSP buckets plus the honest default.
+enum CspBucket {
+  UNCATEGORIZED
+  FIXED_COSTS
+  SAVINGS
+  INVESTMENTS
+  GUILT_FREE
+}
+
+// Per-household standing rule: merchant pattern -> Categorization. Every
+// Correction becomes one of these, so the same mistake is never made twice;
+// the batch job writes rules, not just labels (ADR-0003).
+model CategoryRule {
+  id                String             @id @default(uuid())
+  userId            String
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  merchantPattern   String // normalized substring matched against descriptions
+  cspBucket         CspBucket
+  moneyDial         DialCategory? // only within GUILT_FREE
+  fixedCostCategory FixedCostCategory? // only within FIXED_COSTS
+  source            CategoryRuleSource
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@unique([userId, merchantPattern])
+}
+
+enum CategoryRuleSource {
+  CORRECTION
+  BATCH
+  SEED
 }
 
 model CheckIn {
