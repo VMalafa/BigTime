@@ -62,7 +62,7 @@
 - [ ] 8.3 ~~Integration-test the Fixed Costs page~~ — **Deferred** (same reason as 8.1).
 - [ ] 8.4 ~~Integration-test `/flow/spending-plan`~~ — **Deferred** (same reason as 8.1).
 - [ ] 8.5 ~~E2E-test the anonymous → authenticated migration~~ — **Deferred** (same reason as 8.1).
-- [ ] 8.6 Manual full-flow walkthrough — **Deferred**: requires a live dev server + Supabase + PostgreSQL, which aren't configured in this sandbox. Should be run by the repo owner before merging.
+- [ ] 8.6 Manual full-flow walkthrough — **Partially complete (2026-07-11)**: schema pushed to Supabase via `prisma db push` (added `directUrl`/`DIRECT_URL` for the session pooler, `?pgbouncer=true` on the runtime `DATABASE_URL`), `npm run build` passes, dev server serves `/flow/fixed-costs` (HTTP 200), and Prisma queries the new `FixedCostLineItem` table against the live DB. Remaining: interactive browser click-through of the full flow (income → fixed costs → spending plan → signup migration) by the repo owner.
 - [x] 8.7 Ran `npm run lint` (fixed 2 new lint errors I introduced: `setState` in `useEffect` in `FixedCostForm` → replaced with a `key`-based remount; same pattern in spending-plan page → replaced with the "adjust state during render" pattern). Ran `npm run build` — compiles cleanly, `/flow/fixed-costs` appears in the route manifest, Prisma client regenerates. Fixed one secondary type error where widening `keyof SpendingPlanData` broke `CSPSliders` / `CSPOverview` / `dashboard.defaultPlan`; narrowed the bucket-key types to `SpendingPlanPercentField`/`Key` and added the two new fields to `defaultPlan`.
 
 ## 9. Documentation
