@@ -44,6 +44,15 @@ const navItems: NavItem[] = [
     ),
   },
   {
+    label: "Spending",
+    href: "/dashboard/spending",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M3 16V9M8 16V4M13 16v-6M17 16V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
     label: "Debts",
     href: "/dashboard/debts",
     icon: (
