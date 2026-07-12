@@ -28,6 +28,20 @@ export function classifyDeploymentState(readyState) {
 }
 
 /**
+ * Picks the deployment for a specific commit sha from the deployments list
+ * (newest first). Without a sha, the newest deployment is used. Returns
+ * null when the commit's deployment hasn't been registered yet — callers
+ * should keep polling rather than verify a stale deployment.
+ */
+export function findDeploymentForCommit(deployments, sha) {
+  if (!Array.isArray(deployments) || deployments.length === 0) return null;
+  if (!sha) return deployments[0];
+  return (
+    deployments.find((d) => (d.meta?.githubCommitSha ?? "") === sha) ?? null
+  );
+}
+
+/**
  * Given the deployments list (newest first) from
  * GET /v6/deployments?target=production, returns the deployment to roll back
  * to: the newest READY deployment that is not the current one.

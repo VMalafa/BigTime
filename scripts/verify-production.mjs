@@ -14,6 +14,7 @@ import {
   buildRollbackCommand,
   classifyDeploymentState,
   evaluateProbes,
+  findDeploymentForCommit,
   findPreviousReadyDeployment,
   scanLogLines,
 } from "./verify-production-core.mjs";
@@ -50,12 +51,38 @@ async function fetchProductionDeployments(projectId) {
   return JSON.parse(stdout).deployments ?? [];
 }
 
+async function localHeadSha() {
+  try {
+    const { stdout } = await execAsync("git rev-parse HEAD");
+    return stdout.trim();
+  } catch {
+    return null; // not a git checkout — fall back to newest deployment
+  }
+}
+
 async function waitForReady(projectId) {
   const deadline = Date.now() + WAIT_TIMEOUT_MS;
+  const headSha = await localHeadSha();
+  if (headSha) log(`Verifying the deployment of commit ${headSha.slice(0, 7)}…`);
   for (;;) {
     const deployments = await fetchProductionDeployments(projectId);
-    const current = deployments[0];
-    if (!current) throw new Error("No production deployments found");
+    if (deployments.length === 0) throw new Error("No production deployments found");
+
+    // Match on the commit so a not-yet-registered deployment can never let a
+    // stale (previous) deployment pass verification.
+    const current = findDeploymentForCommit(deployments, headSha);
+    if (!current) {
+      if (Date.now() > deadline) {
+        return {
+          current: deployments[0],
+          deployments,
+          failed: `no production deployment for commit ${headSha?.slice(0, 7)} appeared in time`,
+        };
+      }
+      log(`No deployment for ${headSha?.slice(0, 7)} yet — waiting…`);
+      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+      continue;
+    }
 
     const verdict = classifyDeploymentState(current.readyState);
     log(`Deployment ${current.uid} (${current.url}): ${current.readyState}`);

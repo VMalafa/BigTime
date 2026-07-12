@@ -4,6 +4,7 @@ import {
   buildRollbackCommand,
   classifyDeploymentState,
   evaluateProbes,
+  findDeploymentForCommit,
   findPreviousReadyDeployment,
   scanLogLines,
 } from "./verify-production-core.mjs";
@@ -23,6 +24,26 @@ describe("classifyDeploymentState", () => {
     expect(classifyDeploymentState("BUILDING")).toBe("pending");
     expect(classifyDeploymentState("QUEUED")).toBe("pending");
     expect(classifyDeploymentState("INITIALIZING")).toBe("pending");
+  });
+});
+
+describe("findDeploymentForCommit", () => {
+  const deployments = [
+    { uid: "new", readyState: "BUILDING", meta: { githubCommitSha: "abc123" } },
+    { uid: "old", readyState: "READY", meta: { githubCommitSha: "def456" } },
+  ];
+
+  it("matches the deployment for the given commit", () => {
+    expect(findDeploymentForCommit(deployments, "def456")?.uid).toBe("old");
+  });
+
+  it("returns null while the commit's deployment is not registered yet — never a stale pass", () => {
+    expect(findDeploymentForCommit(deployments, "fff999")).toBeNull();
+  });
+
+  it("falls back to the newest deployment without a sha", () => {
+    expect(findDeploymentForCommit(deployments, null)?.uid).toBe("new");
+    expect(findDeploymentForCommit([], "abc123")).toBeNull();
   });
 });
 
