@@ -30,7 +30,9 @@ test("spending page: plan vs actual, honest chip, Transfers excluded", async ({
   await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 });
 
   await page.goto("/dashboard/spending");
-  await expect(page.getByRole("heading", { name: "Spending" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Spending", exact: true })
+  ).toBeVisible();
 
   // Honesty chip: exactly the two uncategorized money-out transactions
   // ($60 + $45); the Transfer legs and the paycheck deposit don't count.
@@ -49,8 +51,14 @@ test("spending page: plan vs actual, honest chip, Transfers excluded", async ({
   await expect(guiltFree).toContainText("actual 2% ($120)");
 
   // Grouped transaction list with merchants and second-level categories.
-  await expect(page.getByText("OAKWOOD APARTMENTS RENT")).toBeVisible();
-  await expect(page.getByText("Food & Dining")).toBeVisible();
+  await expect(page.getByText("OAKWOOD APARTMENTS RENT").first()).toBeVisible();
+  // The sushi transaction's second-level label, scoped to its bucket section
+  // (the dial breakdown inside the collapsed <details> also contains the text).
+  await expect(
+    page
+      .getByRole("region", { name: "Guilt-Free Spending" })
+      .getByText("Food & Dining")
+  ).toBeVisible();
   await expect(page.getByText("MYSTERY MERCHANT 4821")).toBeVisible();
 
   // Transfers appear only in their own excluded section, never as spending.
@@ -126,7 +134,8 @@ test("linked path: confidence-tiered Proposals on fixed-costs and debts steps", 
   await expect(page.getByText("balance $350 (from the feed)")).toBeVisible();
 
   await page.getByLabel("APR (%)").fill("24.99");
-  await page.getByLabel("Minimum payment").fill("35");
+  // exact + case-sensitive: the manual DebtEntryForm below has "Minimum Payment"
+  await page.getByLabel("Minimum payment", { exact: true }).fill("35");
   await page.getByRole("button", { name: "Confirm Debt" }).click();
 
   // The confirmed Debt lands in the debts list with the feed-owned balance.
@@ -146,13 +155,37 @@ test("linked path: confidence-tiered Proposals on fixed-costs and debts steps", 
 
   // Confirmed income feeds the CSP machinery like typed income:
   // $6,000 existing + $5,500 derived = $11,500 effective monthly.
+  // Wait for the confirmation's server round-trip before navigating away —
+  // the action is fired optimistically and a same-tick navigation can beat it.
+  const confirmRoundTrip = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      response.url().includes("/flow/income")
+  );
   await page.getByRole("button", { name: "Confirm income" }).click();
-  await expect(page.getByText("$11,500/mo")).toBeVisible({ timeout: 15_000 });
+  await confirmRoundTrip;
+  // Appears twice once confirmed (regular income + effective monthly) —
+  // both prove the proposal flowed into the CSP machinery like typed income.
+  await expect(page.getByText("$11,500/mo").first()).toBeVisible({
+    timeout: 15_000,
+  });
 
   // --- The heartbeat: with a confirmed income stream, the dashboard shows
-  // the single Safe-to-Spend number with its Pay Period span.
+  // the single Safe-to-Spend number with its Pay Period span. Drain the
+  // in-flight writes first (the confirm action plus the 500ms-debounced
+  // store persistence) — a full navigation would abort them; then poll with
+  // reloads until the just-written decision is visible to the card's
+  // one-time fetch.
+  await page.waitForLoadState("networkidle");
   await page.goto("/dashboard");
-  await expect(page.getByText("Safe-to-Spend")).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByText(/Pay Period/)).toBeVisible();
+  await expect(async () => {
+    await page.reload();
+    // Full card only: the empty state says "Pay Periods are…", never
+    // "Pay Period <Mon> <day>".
+    await expect(page.getByText(/Pay Period [A-Z]/)).toBeVisible({
+      timeout: 4_000,
+    });
+  }).toPass({ timeout: 30_000 });
+  await expect(page.getByText("Safe-to-Spend")).toBeVisible();
   await expect(page.getByText(/paycheck −/)).toBeVisible();
 });
