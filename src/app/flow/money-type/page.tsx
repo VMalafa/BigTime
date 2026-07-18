@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useFlowStore } from "@/lib/store/flow-store";
+import { saveMoneyType } from "@/app/actions/reflection";
 import { MONEY_TYPES, type MoneyTypeKey } from "@/lib/constants/money-types";
 import { StepWrapper } from "@/components/flow/StepWrapper";
 import { FlowNavigation } from "@/components/flow/FlowNavigation";
@@ -13,6 +15,20 @@ export default function MoneyTypePage() {
   const moneyType = useFlowStore((s) => s.moneyType);
   const setMoneyType = useFlowStore((s) => s.setMoneyType);
   const setCurrentStep = useFlowStore((s) => s.setCurrentStep);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Server-authoritative (#52): selection is an awaited per-intent action
+  // with optimistic UI + rollback.
+  async function handleSelect(key: MoneyType) {
+    setSaveError(null);
+    const previous = useFlowStore.getState().moneyType;
+    setMoneyType(key);
+    const result = await saveMoneyType(key);
+    if (result.error) {
+      useFlowStore.setState({ moneyType: previous });
+      setSaveError(result.error);
+    }
+  }
 
   const handleNext = () => {
     setCurrentStep(2);
@@ -38,10 +54,16 @@ export default function MoneyTypePage() {
             type={key}
             data={MONEY_TYPES[key]}
             isSelected={moneyType === key}
-            onSelect={() => setMoneyType(key as MoneyType)}
+            onSelect={() => void handleSelect(key as MoneyType)}
           />
         ))}
       </div>
+
+      {saveError && (
+        <p role="alert" className="text-sm text-red-600 font-sans mt-3 text-center">
+          {saveError}
+        </p>
+      )}
 
       <FlowNavigation
         onBack={handleBack}

@@ -41,77 +41,11 @@ async function getActiveProfileId(): Promise<string | null> {
   return defaultProfile?.id ?? null;
 }
 
-export async function persistScripts(scripts: Record<number, string>) {
-  const profileId = await getActiveProfileId();
-  if (!profileId) return;
-
-  const entries = Object.entries(scripts).map(([promptId, response]) => ({
-    profileId,
-    promptId: Number(promptId),
-    response,
-  }));
-
-  for (const entry of entries) {
-    await prisma.moneyScript.upsert({
-      where: {
-        profileId_promptId: {
-          profileId: entry.profileId,
-          promptId: entry.promptId,
-        },
-      },
-      update: { response: entry.response },
-      create: entry,
-    });
-  }
-}
-
-export async function persistMoneyType(moneyType: MoneyType) {
-  const profileId = await getActiveProfileId();
-  if (!profileId) return;
-
-  await prisma.profile.update({
-    where: { id: profileId },
-    data: { moneyType },
-  });
-}
-
-// persistDebts is gone (#51): debt mutations are awaited per-intent
-// actions in src/app/actions/debts.ts — the Mapping invariants (feed-owned
-// balance, SET NULL unmapping) moved there. loadProfileFlowData still
-// returns debts for the store's read mirror.
-
-// persistIncomeSources / persistBonusItems are gone (#49): income and bonus
-// mutations are awaited per-intent actions in src/app/actions/income.ts —
-// no whole-array replace, stable row ids. loadProfileFlowData still returns
-// both for the store's read mirror.
-
-// persistSpendingPlan / persistFixedCostLineItems are gone (#50): CSP and
-// line-item mutations are awaited per-intent actions in
-// src/app/actions/spending-plan.ts — no whole-array replace, stable row
-// ids. loadProfileFlowData still returns the plan for the store's read
-// mirror.
-
-export async function persistMoneyDials(dials: Record<string, number>) {
-  const profileId = await getActiveProfileId();
-  if (!profileId) return;
-
-  for (const [category, level] of Object.entries(dials)) {
-    await prisma.moneyDial.upsert({
-      where: {
-        profileId_category: {
-          profileId,
-          category: category as DialCategory,
-        },
-      },
-      update: { level },
-      create: {
-        profileId,
-        category: category as DialCategory,
-        level,
-      },
-    });
-  }
-}
+// The batch persist* actions are gone (#49-#52): every domain entity now
+// mutates through awaited per-intent actions (src/app/actions/income.ts,
+// spending-plan.ts, debts.ts, reflection.ts) — no whole-array replace,
+// stable row ids. What remains here is the hydrate-on-auth read that fills
+// the store's read mirror; #53 retires it.
 
 export async function loadProfileFlowData() {
   const profileId = await getActiveProfileId();

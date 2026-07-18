@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useFlowStore } from "@/lib/store/flow-store";
+import { saveMoneyScript } from "@/app/actions/reflection";
 import { MONEY_SCRIPTS } from "@/lib/constants/money-scripts";
 import { StepWrapper } from "@/components/flow/StepWrapper";
 import { FlowNavigation } from "@/components/flow/FlowNavigation";
@@ -12,6 +14,17 @@ export default function ScriptsPage() {
   const scripts = useFlowStore((s) => s.scripts);
   const setScript = useFlowStore((s) => s.setScript);
   const setCurrentStep = useFlowStore((s) => s.setCurrentStep);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Server-authoritative (#52): keystrokes stay local; the per-intent save
+  // fires when an answer settles (blur). The text is never rolled back on
+  // failure — the next blur retries; honesty over destruction.
+  async function persistScript(promptId: number, value: string) {
+    const result = await saveMoneyScript(promptId, value);
+    setSaveError(
+      result.error ? "An answer couldn't be saved — it will retry." : null
+    );
+  }
 
   const filledCount = MONEY_SCRIPTS.filter(
     (s) => scripts[s.id]?.trim().length > 0
@@ -37,9 +50,16 @@ export default function ScriptsPage() {
             placeholder={script.placeholder}
             value={scripts[script.id] ?? ""}
             onChange={(value) => setScript(script.id, value)}
+            onBlur={(value) => void persistScript(script.id, value)}
           />
         ))}
       </div>
+
+      {saveError && (
+        <p role="alert" className="text-sm text-red-600 font-sans mt-3 text-center">
+          {saveError}
+        </p>
+      )}
 
       <p className="text-text-secondary text-sm mt-4 text-center font-sans">
         {filledCount} of {MONEY_SCRIPTS.length} answered

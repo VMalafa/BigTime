@@ -8,6 +8,8 @@ interface ScriptPromptProps {
   placeholder: string;
   value: string;
   onChange: (value: string) => void;
+  /** Fires when the answer settles — the per-intent save point (#52). */
+  onBlur?: (value: string) => void;
 }
 
 export function ScriptPrompt({
@@ -16,6 +18,7 @@ export function ScriptPrompt({
   placeholder,
   value,
   onChange,
+  onBlur,
 }: ScriptPromptProps) {
   return (
     <Card className="mb-4">
@@ -37,6 +40,7 @@ export function ScriptPrompt({
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onBlur={(e) => onBlur?.(e.target.value)}
         aria-label={prompt}
       />
     </Card>
