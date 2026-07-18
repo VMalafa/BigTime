@@ -102,7 +102,9 @@ test("ICS import: full Corbett set as tiered drafts; re-import raises nothing; m
   ).toBeVisible({ timeout: 20_000 });
   await page.reload();
   await expect(
-    page.getByText("1 dismissed (won't be raised again)")
+    page
+      .getByRole("region", { name: "Corbett Prep 2026-27" })
+      .getByText("1 dismissed (won't be raised again)")
   ).toBeVisible();
   await expect(
     page.getByRole("region", { name: "Corbett Prep 2026-27" }).getByText(

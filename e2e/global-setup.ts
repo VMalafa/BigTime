@@ -11,6 +11,15 @@ import {
   e2eSpendingPassword,
   loadDotEnv,
 } from "./fixture";
+import { normalizeEventTitle } from "../src/lib/timeline/natural-key";
+
+// A second, pre-confirmed paycheck stream for the timeline smoke (#56):
+// letters-only so normalizeMerchant keeps the pattern intact, deposits in
+// past months only so current-month spending assertions stay untouched,
+// and its INCOME decision seeded CONFIRMED so it powers the money rhythm
+// without ever appearing as a Proposal (the ACME stream stays proposed for
+// the spending smoke).
+const TIMELINE_STREAM = "ETE TIMELINE PAYROLL DEPOSIT";
 
 const PROFILE_ID = "e2e-spending-profile";
 const CONNECTION_ID = "e2e-spending-conn";
@@ -229,6 +238,120 @@ export default async function globalSetup() {
         create: { id: t.id, linkedAccountId: t.accountId, externalId: t.externalId, ...data },
       });
     }
+
+    // ------------------------------------------------------------------
+    // Timeline fixture (#56)
+
+    // Pre-confirmed second paycheck stream: biweekly-ish deposits, PAST
+    // months only (current-month income assertions stay at $6,000); the
+    // projection engine still derives future paydays from the rhythm.
+    await prisma.proposalDecision.create({
+      data: {
+        userId: authUserId,
+        kind: "INCOME",
+        key: TIMELINE_STREAM,
+        decision: "CONFIRMED",
+      },
+    });
+    const timelineDeposits = [-3, -2, -1].flatMap((offset, i) => [
+      { externalId: `e2e-tl-pay${i}a`, postedAt: monthDay(offset, 2), amount: 1500 },
+      { externalId: `e2e-tl-pay${i}b`, postedAt: monthDay(offset, 16), amount: 1500 },
+    ]);
+    for (const d of timelineDeposits) {
+      await prisma.feedTransaction.upsert({
+        where: {
+          linkedAccountId_externalId: {
+            linkedAccountId: CHECKING_ID,
+            externalId: d.externalId,
+          },
+        },
+        update: { postedAt: d.postedAt },
+        create: {
+          linkedAccountId: CHECKING_ID,
+          externalId: d.externalId,
+          postedAt: d.postedAt,
+          amount: d.amount,
+          description: TIMELINE_STREAM,
+          cspBucket: "UNCATEGORIZED",
+          isTransfer: false,
+        },
+      });
+    }
+
+    // A fixed cost with a matching PAST-months charge stream so an Earmark
+    // due date renders on the timeline. The matching line-item name also
+    // keeps this stream out of the fixed-cost Proposals (existing-name
+    // exclusion), so the spending smoke's proposal set is untouched.
+    for (const [i, offset] of [-3, -2, -1].entries()) {
+      await prisma.feedTransaction.upsert({
+        where: {
+          linkedAccountId_externalId: {
+            linkedAccountId: CHECKING_ID,
+            externalId: `e2e-tl-util${i}`,
+          },
+        },
+        update: { postedAt: monthDay(offset, 8) },
+        create: {
+          linkedAccountId: CHECKING_ID,
+          externalId: `e2e-tl-util${i}`,
+          postedAt: monthDay(offset, 8),
+          amount: -80,
+          description: "ETE UTILITY COOP",
+          cspBucket: "UNCATEGORIZED",
+          isTransfer: false,
+        },
+      });
+    }
+    await prisma.fixedCostLineItem.create({
+      data: {
+        id: "e2e-timeline-utility",
+        spendingPlan: { connect: { profileId: PROFILE_ID } },
+        category: "UTILITIES",
+        name: "Ete Utility Coop",
+        monthlyAmount: 80,
+        note: "Timeline fixture",
+        sortOrder: 0,
+      },
+    });
+
+    // Confirmed school Events in the coming two weeks, plus a DRAFT and a
+    // DISMISSED row that must never render on the timeline.
+    const schoolEvent = (
+      daysAhead: number,
+      title: string,
+      category: string,
+      status: "CONFIRMED" | "DRAFT" | "DISMISSED"
+    ) => {
+      const date = new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000);
+      const startDate = new Date(
+        Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
+      );
+      return {
+        startDate,
+        title,
+        normalizedTitle: normalizeEventTitle(title),
+        category,
+        status,
+      };
+    };
+    await prisma.calendarSource.create({
+      data: {
+        id: "e2e-timeline-school",
+        userId: authUserId,
+        name: "E2E School 2026-27",
+        kind: "IMPORT_ICS",
+        sourceStamp: "UPDATED 6/3/26",
+        categories: ["holiday", "dismissal", "event"],
+        events: {
+          create: [
+            schoolEvent(3, "Noon Dismissal – E2E School", "dismissal", "CONFIRMED"),
+            schoolEvent(10, "E2E School Holiday", "holiday", "CONFIRMED"),
+            schoolEvent(5, "E2E Draft Only Event", "event", "DRAFT"),
+            schoolEvent(6, "E2E Dismissed Only Event", "event", "DISMISSED"),
+          ],
+        },
+      },
+    });
   } finally {
     await prisma.$disconnect();
   }
