@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { getHeartbeat, type HeartbeatData } from "@/app/actions/heartbeat";
+import type { HeartbeatData } from "@/app/actions/heartbeat";
 import { formatCurrency } from "@/lib/utils/format";
 
 // Safe-to-Spend (CONTEXT.md): the single leading number — the current Pay
 // Period's paycheck minus its Earmarks and planned savings/investments.
-// Recomputed from the database on every load, so it updates after each sync.
+// Purely presentational since #79: Home's one read (getHomeTruth) computes
+// the heartbeat once and passes it down — the card fetching its own copy
+// doubled the most expensive query path on every glance.
 
 function dateLabel(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", {
@@ -16,13 +17,7 @@ function dateLabel(iso: string): string {
   });
 }
 
-export function SafeToSpendCard() {
-  const [data, setData] = useState<HeartbeatData | null>(null);
-
-  useEffect(() => {
-    getHeartbeat().then(setData).catch(() => {});
-  }, []);
-
+export function SafeToSpendCard({ data }: { data: HeartbeatData | null }) {
   if (!data) return null;
 
   if (!data.available) {

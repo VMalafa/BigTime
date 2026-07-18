@@ -348,6 +348,10 @@ export default async function globalSetup() {
           create: [
             // Cost display (#72): "Extended Day · $40"-style plain info.
             schoolEvent(3, "Noon Dismissal – E2E School", "dismissal", "CONFIRMED", 4000),
+            // Unassigned quirk tomorrow (#79): makes the cross-domain
+            // coverage Watch deterministic on Home until a spec assigns it
+            // (re-seeded fresh every run).
+            schoolEvent(1, "E2E Pickup Quirk – Tomorrow", "dismissal", "CONFIRMED"),
             schoolEvent(10, "E2E School Holiday", "holiday", "CONFIRMED"),
             schoolEvent(5, "E2E Draft Only Event", "event", "DRAFT"),
             schoolEvent(6, "E2E Dismissed Only Event", "event", "DISMISSED"),

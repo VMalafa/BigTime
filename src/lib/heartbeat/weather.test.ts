@@ -135,6 +135,67 @@ describe("computeWeather — Watch", () => {
   });
 });
 
+describe("computeWeather — cross-domain coverage (#79)", () => {
+  const quirk = { title: "Noon Dismissal", date: "2026-07-16" };
+
+  it("an unassigned quirk today raises Watch with the Assign pickup action", () => {
+    const reading = computeWeather(base({ unassignedQuirk: quirk }));
+    expect(reading.state).toBe("Watch");
+    expect(reading.sentence).toBe(
+      "Noon Dismissal today — no one's on pickup yet."
+    );
+    expect(reading.action).toEqual({
+      label: "Assign pickup",
+      href: "/dashboard/timeline",
+    });
+  });
+
+  it("says tomorrow when the quirk is tomorrow", () => {
+    const reading = computeWeather(
+      base({ unassignedQuirk: { ...quirk, date: "2026-07-17" } })
+    );
+    expect(reading.sentence).toContain("tomorrow");
+  });
+
+  it("coverage outranks the money Watch conditions when both fire", () => {
+    const reading = computeWeather(
+      base({
+        unassignedQuirk: quirk,
+        paycheckCents: 0,
+        plannedSavingsInvestmentsCents: 0,
+        earmarks: [
+          { name: "Daycare", amountCents: 41_200, dueDate: "2026-07-25" },
+        ],
+      })
+    );
+    expect(reading.state).toBe("Watch");
+    expect(reading.action?.label).toBe("Assign pickup");
+  });
+
+  it("Attention still outranks coverage (one action discipline)", () => {
+    const reading = computeWeather(
+      base({ unassignedQuirk: quirk, safeToSpendCents: -1 })
+    );
+    expect(reading.state).toBe("Attention");
+    expect(reading.action?.href).toBe("/dashboard/spending");
+  });
+
+  it("assignment clears it: no quirk, engine rules resume", () => {
+    const reading = computeWeather(base({ unassignedQuirk: null }));
+    expect(reading.state).toBe("Steady");
+  });
+
+  it("a pickup gap outranks even the no-heartbeat setup nudge", () => {
+    const reading = computeWeather({
+      heartbeatAvailable: false,
+      unassignedQuirk: quirk,
+      today: TODAY,
+    });
+    expect(reading.state).toBe("Watch");
+    expect(reading.action?.label).toBe("Assign pickup");
+  });
+});
+
 describe("computeWeather — Steady", () => {
   it("reads Steady with no action when everything due is covered", () => {
     const reading = computeWeather(

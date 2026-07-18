@@ -6,8 +6,11 @@
 // Ratified rules (the household re-ratifies at PR review):
 //   Attention — Safe-to-Spend negative, or an unfunded Earmark due within
 //               3 days (including past due).
-//   Watch     — any unfunded Earmark in the current Pay Period, or no
-//               paycheck in 40+ days on a linked household.
+//   Watch     — (cross-domain, #79) an unassigned school-quirk Event
+//               today/tomorrow — coverage outranks the money Watch
+//               conditions when both fire; then any unfunded Earmark in
+//               the current Pay Period, or no paycheck in 40+ days on a
+//               linked household.
 //   Steady    — otherwise.
 // Exactly one action, from the highest-priority triggering condition;
 // Steady carries none.
@@ -37,6 +40,12 @@ export interface WeatherInput {
   earmarks?: WeatherEarmarkInput[];
   /** ISO date of the period-opening paycheck. */
   periodStart?: string | null;
+  /**
+   * The trivially-knowable coverage gap (#79): a school-quirk Event
+   * today/tomorrow with no person chip. Anything smarter belongs to the
+   * deferred derived-coverage engine (#40/#43).
+   */
+  unassignedQuirk?: { title: string; date: string } | null;
   /** ISO date for "today" — injected so the engine stays pure. */
   today: string;
 }
@@ -81,6 +90,18 @@ function formatDay(iso: string): string {
   );
 }
 
+function coverageWatch(
+  quirk: { title: string; date: string },
+  todayIso: string
+): WeatherReading {
+  const isToday = quirk.date === todayIso.slice(0, 10);
+  return {
+    state: "Watch",
+    sentence: `${quirk.title} ${isToday ? "today" : "tomorrow"} — no one's on pickup yet.`,
+    action: { label: "Assign pickup", href: "/dashboard/timeline" },
+  };
+}
+
 /**
  * The same funding rule the Timeline's money moments use: dues draw down
  * the period's paycheck (after the planned savings/investments share) in
@@ -105,6 +126,12 @@ export function fundEarmarks(input: {
 }
 
 export function computeWeather(input: WeatherInput): WeatherReading {
+  // Coverage is knowable without money data: even before the heartbeat
+  // runs, an unassigned quirk day is the sharpest ball on the screen.
+  if (input.unassignedQuirk && !input.heartbeatAvailable) {
+    return coverageWatch(input.unassignedQuirk, input.today);
+  }
+
   // No heartbeat yet: we don't know, and saying Steady would be a lie.
   if (!input.heartbeatAvailable) {
     const needsIncome = (input.heartbeatReason ?? "").includes("income");
@@ -152,6 +179,12 @@ export function computeWeather(input: WeatherInput): WeatherReading {
   }
 
   // --- Watch: nothing is on fire, but don't look away.
+  // Coverage outranks money (#79): the sharpest ball on a quirk day is an
+  // unassigned pickup, not a later-in-period shortfall.
+  if (input.unassignedQuirk) {
+    return coverageWatch(input.unassignedQuirk, input.today);
+  }
+
   if (unfunded.length > 0) {
     const first = unfunded[0];
     return {

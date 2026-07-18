@@ -83,14 +83,31 @@ test("spending page: plan vs actual, honest chip, Transfers excluded", async ({
   await page.getByRole("button", { name: "Guilt-Free", exact: true }).click();
   await page.getByRole("button", { name: "Convenience" }).click();
   await page.getByRole("button", { name: "Save correction" }).click();
-  await expect(
-    page.getByText("1 transaction not yet categorized ($45)")
-  ).toBeVisible({ timeout: 15_000 });
+  // Drain the correction's in-flight write before reloading for the
+  // server-rendered chip (a reload can abort a pending action — the #13
+  // scenario), then poll: the refresh round trip is slow on the pooled
+  // single connection.
+  await page.waitForLoadState("networkidle");
+  await expect(async () => {
+    await page.reload();
+    await expect(
+      page.getByText("1 transaction not yet categorized ($45)")
+    ).toBeVisible({ timeout: 12_000 });
+  }).toPass({ timeout: 60_000 });
 
   // Month picker: the next (future) month has no data and the chip
   // disappears only because the count is genuinely zero.
-  await page.getByRole("link", { name: "Next month" }).click();
-  await expect(page.getByText("No feed transactions this month.")).toBeVisible();
+  // A click during post-reload hydration can be swallowed — retry the
+  // click until the navigation commits, then wait out the RSC stream
+  // (the old month stays on screen until the new render arrives).
+  await page.waitForLoadState("networkidle");
+  await expect(async () => {
+    await page.getByRole("link", { name: "Next month" }).click();
+    await expect(page).toHaveURL(/month=/, { timeout: 5_000 });
+  }).toPass({ timeout: 45_000 });
+  await expect(page.getByText("No feed transactions this month.")).toBeVisible({
+    timeout: 30_000,
+  });
   await expect(page.getByText("not yet categorized")).toHaveCount(0);
 });
 
@@ -186,10 +203,13 @@ test("linked path: confidence-tiered Proposals on fixed-costs and debts steps", 
     await page.reload();
     // Full card only: the empty state says "Pay Periods are…", never
     // "Pay Period <Mon> <day>".
+    // Each attempt reloads (aborting the in-flight one-read), so the
+    // inner wait must outlast a full getHomeTruth round trip on the
+    // pooled single connection (#79 made Home's read heavier).
     await expect(page.getByText(/Pay Period [A-Z]/)).toBeVisible({
-      timeout: 4_000,
+      timeout: 12_000,
     });
-  }).toPass({ timeout: 30_000 });
+  }).toPass({ timeout: 60_000 });
   await expect(page.getByText("Safe-to-Spend")).toBeVisible();
   await expect(page.getByText(/paycheck −/)).toBeVisible();
 });
