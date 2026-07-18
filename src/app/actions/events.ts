@@ -17,6 +17,7 @@ import type { Event } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 import { normalizeEventTitle } from "@/lib/timeline/natural-key";
+import { isExtraAssignee, type ExtraAssignee } from "@/lib/timeline/assignee";
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -183,6 +184,51 @@ export async function updateEvent(
     }
     throw err;
   }
+}
+
+/**
+ * Person chip assignment (#72): who's got this Event — a Profile, one of
+ * the fixed extras (Sitter / Extended Day), or nobody. One awaited intent;
+ * profileId and assigneeExtra are mutually exclusive by construction here.
+ */
+export type AssignEventPersonInput =
+  | { kind: "PROFILE"; profileId: string }
+  | { kind: "EXTRA"; extra: ExtraAssignee }
+  | null;
+
+export async function assignEventPerson(
+  eventId: string,
+  assignee: AssignEventPersonInput
+): Promise<{ ok?: boolean; error?: string }> {
+  const userId = await getAuthedUserId();
+  if (!userId) return { error: "Not signed in." };
+
+  const existing = await prisma.event.findFirst({
+    where: { id: eventId, calendarSource: { userId } },
+    select: { id: true },
+  });
+  if (!existing) return { error: "Event not found." };
+
+  let data: { profileId: string | null; assigneeExtra: ExtraAssignee | null };
+  if (assignee === null) {
+    data = { profileId: null, assigneeExtra: null };
+  } else if (assignee.kind === "PROFILE") {
+    const profile = await prisma.profile.findFirst({
+      where: { id: assignee.profileId, userId },
+      select: { id: true },
+    });
+    if (!profile) return { error: "Profile not found in this household." };
+    data = { profileId: profile.id, assigneeExtra: null };
+  } else {
+    if (!isExtraAssignee(assignee.extra)) {
+      return { error: "Unknown assignee." };
+    }
+    data = { profileId: null, assigneeExtra: assignee.extra };
+  }
+
+  await prisma.event.update({ where: { id: existing.id }, data });
+  revalidatePath("/dashboard/timeline");
+  return { ok: true };
 }
 
 /**

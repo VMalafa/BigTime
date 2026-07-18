@@ -136,6 +136,7 @@ export default async function TimelinePage() {
     sourceName: event.calendarSource.name,
     profileId: event.profile?.id ?? null,
     profileName: event.profile?.name ?? null,
+    assigneeExtra: event.assigneeExtra,
   }));
 
   const filterSources: TimelineFilterSource[] = sources

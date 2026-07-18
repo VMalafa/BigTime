@@ -320,7 +320,8 @@ export default async function globalSetup() {
       daysAhead: number,
       title: string,
       category: string,
-      status: "CONFIRMED" | "DRAFT" | "DISMISSED"
+      status: "CONFIRMED" | "DRAFT" | "DISMISSED",
+      costCents: number | null = null
     ) => {
       const date = new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000);
       const startDate = new Date(
@@ -332,6 +333,7 @@ export default async function globalSetup() {
         normalizedTitle: normalizeEventTitle(title),
         category,
         status,
+        costCents,
       };
     };
     await prisma.calendarSource.create({
@@ -344,7 +346,8 @@ export default async function globalSetup() {
         categories: ["holiday", "dismissal", "event"],
         events: {
           create: [
-            schoolEvent(3, "Noon Dismissal – E2E School", "dismissal", "CONFIRMED"),
+            // Cost display (#72): "Extended Day · $40"-style plain info.
+            schoolEvent(3, "Noon Dismissal – E2E School", "dismissal", "CONFIRMED", 4000),
             schoolEvent(10, "E2E School Holiday", "holiday", "CONFIRMED"),
             schoolEvent(5, "E2E Draft Only Event", "event", "DRAFT"),
             schoolEvent(6, "E2E Dismissed Only Event", "event", "DISMISSED"),
