@@ -22,6 +22,7 @@ model User {
   aggregatorConnections AggregatorConnection[]
   categoryRules         CategoryRule[]
   proposalDecisions     ProposalDecision[]
+  calendarSources       CalendarSource[]
 }
 
 model Profile {
@@ -38,6 +39,7 @@ model Profile {
   spendingPlan   SpendingPlan?
   moneyDials     MoneyDial[]
   linkedAccounts LinkedAccount[]
+  events         Event[]
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
@@ -423,6 +425,81 @@ model ProposalDecision {
   updatedAt DateTime @updatedAt
 
   @@unique([userId, kind, key])
+}
+
+// ---------------------------------------------------------------------------
+// Household Timeline (CONTEXT.md Timeline section; ratified in #32/#33)
+//
+// An Event is a dated life moment — never a Transaction, never an Earmark
+// (though a cost-bearing Event may later *raise* one, only with the
+// household's confirmation; hence the optional cost on the model now, the
+// confirm flow later). A Calendar Source is where a batch of Events came
+// from and owns its own category vocabulary — the app never forces a
+// universal Event taxonomy. Imported Events are drafts until ratified: the
+// feed drafts, the human ratifies.
+// ---------------------------------------------------------------------------
+
+enum CalendarSourceKind {
+  IMPORT_PHOTO
+  IMPORT_ICS
+  MANUAL
+}
+
+// DRAFT -> CONFIRMED on ratification; DISMISSED rows are kept so a
+// re-import never re-raises a rejected Event (ProposalDecision spirit).
+enum EventStatus {
+  DRAFT
+  CONFIRMED
+  DISMISSED
+}
+
+model CalendarSource {
+  id          String             @id @default(uuid())
+  // Household-scoped: the User is the household's single shared login.
+  userId      String
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  kind        CalendarSourceKind
+  // The artifact's own reissue stamp, verbatim (e.g. "UPDATED 6/3/26").
+  sourceStamp String?
+  // Per-source category vocabulary (e.g. Corbett's holiday / dismissal /
+  // break / event / academic). Another source may differ.
+  categories  String[]
+  events      Event[]
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([userId])
+}
+
+model Event {
+  id               String         @id @default(uuid())
+  calendarSourceId String
+  calendarSource   CalendarSource @relation(fields: [calendarSourceId], references: [id], onDelete: Cascade)
+  // Date-only by design (school calendars enumerate days, not times).
+  startDate        DateTime       @db.Date
+  // Exclusive end (ICS DTEND convention); null = single-day.
+  endDate          DateTime?      @db.Date
+  title            String
+  // Natural-key component for re-import dedup: title lowercased, punctuation
+  // stripped, whitespace collapsed (src/lib/timeline/natural-key.ts) — the
+  // actions maintain it, never callers.
+  normalizedTitle  String
+  // One of the owning Calendar Source's categories (validated in actions;
+  // per-source vocabularies keep this a String, not an enum).
+  category         String
+  note             String?
+  costCents        Int?
+  status           EventStatus    @default(DRAFT)
+  // Optional person-tagging (dad's travel, just school); household-wide
+  // when null.
+  profileId        String?
+  profile          Profile?       @relation(fields: [profileId], references: [id], onDelete: SetNull)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@unique([calendarSourceId, startDate, normalizedTitle])
+  @@index([calendarSourceId, startDate])
 }
 
 model CheckIn {
