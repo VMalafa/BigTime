@@ -73,3 +73,53 @@ test("merged stream: school events + money rhythm interleaved; drafts and dismis
   await expect(page.getByText("Noon Dismissal – E2E School")).toHaveCount(0);
   await expect(page.getByText("E2E School Holiday")).toBeVisible();
 });
+
+// #58: select Events on the timeline, download one .ics in the scheduler's
+// exact format, and prove the round-trip — re-importing the export through
+// #55 raises nothing new.
+test("ics export: selection-driven download round-trips through import with no dupes", async ({
+  page,
+}) => {
+  await page.goto("/auth/login");
+  await page.getByLabel("Email").fill(E2E_SPENDING_EMAIL);
+  await page.getByLabel("Password").fill(e2eSpendingPassword());
+  await page.getByRole("button", { name: "Sign In", exact: true }).click();
+  await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 });
+
+  await page.goto("/dashboard/timeline");
+  await expect(page.getByText("E2E School Holiday")).toBeVisible();
+
+  // Empty selection disables the action.
+  await expect(page.getByRole("button", { name: "Download .ics" })).toBeDisabled();
+
+  await page
+    .getByLabel("Select Noon Dismissal – E2E School for export")
+    .check();
+  await page.getByLabel("Select E2E School Holiday for export").check();
+  await expect(page.getByText("2 selected for export")).toBeVisible();
+
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download .ics" }).click();
+  const download = await downloadPromise;
+  const path = await download.path();
+  const { readFileSync } = await import("node:fs");
+  const ics = readFileSync(path!, "utf8");
+
+  // Scheduler parity: date-only VEVENTs, explicit exclusive DTEND, the
+  // single-source name so re-import lands on the same Calendar Source.
+  expect(ics).toContain("X-WR-CALNAME:E2E School 2026-27");
+  expect(ics).toContain("DTSTART;VALUE=DATE:");
+  expect(ics).toContain("TRANSP:TRANSPARENT");
+  expect(ics).toContain("SUMMARY:Noon Dismissal – E2E School");
+
+  // Round-trip: importing the export raises nothing new.
+  await page.goto("/dashboard/calendar");
+  await page.getByLabel("Calendar file").setInputFiles({
+    name: "household-timeline.ics",
+    mimeType: "text/calendar",
+    buffer: Buffer.from(ics, "utf8"),
+  });
+  await expect(
+    page.getByText("E2E School 2026-27: 0 new drafts, 2 already known.")
+  ).toBeVisible({ timeout: 20_000 });
+});

@@ -10,6 +10,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { MoneyMoment } from "@/lib/timeline/money-moments";
+import { buildIcsExport } from "@/lib/timeline/ics-export";
+import { Button } from "@/components/ui/Button";
 
 export interface TimelineEventItem {
   id: string;
@@ -100,6 +102,8 @@ export function TimelineStream({
   );
   const [mutedMoney, setMutedMoney] = useState<Set<string>>(new Set());
   const [person, setPerson] = useState<string>("ALL");
+  // Export selection (#58): Events only — money moments stay in-app in v1.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const categoryKey = (sourceId: string, category: string) =>
     `${sourceId}:${category}`;
@@ -145,6 +149,49 @@ export function TimelineStream({
   }
 
   const hasAnything = events.length > 0 || moments.length > 0;
+
+  // Export honors the current filters: only visible, selected Events go.
+  const visibleEvents = rows.flatMap((row) =>
+    row.type === "event" ? [row.event] : []
+  );
+  const exportableEvents = visibleEvents.filter((e) => selected.has(e.id));
+
+  function toggleSelected(id: string) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function handleDownload() {
+    if (exportableEvents.length === 0) return;
+    // One source selected → its name, so a re-import lands on the same
+    // Calendar Source and the natural-key dedup raises nothing new.
+    const sourceIds = new Set(exportableEvents.map((e) => e.sourceId));
+    const calendarName =
+      sourceIds.size === 1
+        ? (exportableEvents[0]?.sourceName ?? "Household Timeline")
+        : "Household Timeline";
+    const ics = buildIcsExport({
+      calendarName,
+      events: exportableEvents.map((e) => ({
+        startDate: e.date,
+        endDate: e.endDate,
+        title: e.title,
+        note: e.note,
+      })),
+      now: new Date(),
+    });
+    const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "household-timeline.ics";
+    anchor.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
 
   return (
     <div className="space-y-6">
@@ -220,6 +267,41 @@ export function TimelineStream({
         </p>
       )}
 
+      {/* --- Export toolbar (#58): Events only, honors filters --- */}
+      {visibleEvents.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg bg-white border border-bg-secondary px-4 py-2.5">
+          <span className="text-sm font-sans text-text-secondary">
+            {exportableEvents.length} selected for export
+          </span>
+          <button
+            type="button"
+            onClick={() =>
+              setSelected(new Set(visibleEvents.map((e) => e.id)))
+            }
+            className="text-sm font-sans text-accent-gold hover:underline"
+          >
+            Select visible
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelected(new Set())}
+            className="text-sm font-sans text-text-secondary hover:underline"
+          >
+            Clear
+          </button>
+          <div className="ml-auto">
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={exportableEvents.length === 0}
+              onClick={handleDownload}
+            >
+              Download .ics
+            </Button>
+          </div>
+        </div>
+      )}
+
       {!hasAnything && (
         <div className="rounded-lg bg-bg-secondary/40 p-8 text-center space-y-2">
           <p className="font-serif text-lg text-text-primary">
@@ -252,6 +334,13 @@ export function TimelineStream({
                   data-timeline-kind="event"
                   className="flex gap-3 rounded-lg bg-white border border-bg-secondary px-4 py-3"
                 >
+                  <input
+                    type="checkbox"
+                    className="mt-1 h-4 w-4 shrink-0 accent-[#b08d2f] cursor-pointer"
+                    aria-label={`Select ${row.event.title} for export`}
+                    checked={selected.has(row.event.id)}
+                    onChange={() => toggleSelected(row.event.id)}
+                  />
                   <div className="w-28 shrink-0 text-sm font-sans text-text-secondary pt-0.5">
                     {formatRange(row.event.date, row.event.endDate)}
                   </div>
