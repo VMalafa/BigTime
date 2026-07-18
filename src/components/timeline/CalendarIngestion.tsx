@@ -11,8 +11,10 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { confirmEvents, dismissEvent } from "@/app/actions/events";
 import { importIcsCalendar } from "@/app/actions/calendar";
-import { isConfirmAllTier } from "@/lib/timeline/ingestion";
+import { partitionDraftTiers } from "@/lib/timeline/ingestion";
+import { normalizeEventTitle } from "@/lib/timeline/natural-key";
 import { ManualEventForm } from "@/components/timeline/ManualEventForm";
+import { ExtractCalendarPanel } from "@/components/timeline/ExtractCalendarPanel";
 import { formatCurrency } from "@/lib/utils/format";
 
 export interface SerializedEvent {
@@ -66,6 +68,10 @@ export function CalendarIngestion({ sources }: { sources: SerializedSource[] }) 
   // Optimistic status overlays on top of the server-rendered props;
   // router.refresh() re-syncs after each successful intent.
   const [overrides, setOverrides] = useState<StatusOverride>({});
+  // Extraction-session attention keys (#57): natural keys the model was
+  // unsure about (below the confidence floor). Ephemeral — after a reload
+  // the shape rules alone govern tiering.
+  const [attentionKeys, setAttentionKeys] = useState<Set<string>>(new Set());
 
   const statusOf = (event: SerializedEvent) =>
     overrides[event.id] ?? event.status;
@@ -167,8 +173,19 @@ export function CalendarIngestion({ sources }: { sources: SerializedSource[] }) 
       {/* --- Review drafts, per source --- */}
       {sources.map((source) => {
         const drafts = source.events.filter((e) => statusOf(e) === "DRAFT");
-        const confirmAll = drafts.filter(isConfirmAllTier);
-        const individual = drafts.filter((e) => !isConfirmAllTier(e));
+        // The deterministic ICS path only distrusts ranges; the AI path
+        // (#57) also routes same-day siblings and below-confidence-floor
+        // rows to individual attention.
+        const { confirmAll, individual } = partitionDraftTiers(drafts, {
+          siblingsToIndividual: source.kind === "IMPORT_PHOTO",
+          needsAttention:
+            source.kind === "IMPORT_PHOTO"
+              ? (e) =>
+                  attentionKeys.has(
+                    `${e.startDate}|${normalizeEventTitle(e.title)}`
+                  )
+              : undefined,
+        });
         const confirmed = source.events.filter(
           (e) => statusOf(e) === "CONFIRMED"
         );
@@ -321,6 +338,14 @@ export function CalendarIngestion({ sources }: { sources: SerializedSource[] }) 
           </section>
         );
       })}
+
+      {/* --- AI extraction (#57): photo or pasted text --- */}
+      <ExtractCalendarPanel
+        onImported={(lowConfidenceKeys) => {
+          setAttentionKeys(lowConfidenceKeys);
+          router.refresh();
+        }}
+      />
 
       {/* --- Manual entry --- */}
       <Card padding="lg">
