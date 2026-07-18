@@ -1,19 +1,4 @@
-export interface WholenessBreakdown {
-  budget: number;
-  save: number;
-  debt: number;
-  credit: number;
-  income: number;
-  retirement: number;
-  wealth: number;
-  insurance: number;
-  netWorth: number;
-  legacy: number;
-  total: number;
-}
-
 export interface DashboardData {
-  wholenessScore: WholenessBreakdown;
   spendingPlan: {
     fixedCosts: { percent: number; amount: number };
     savings: { percent: number; amount: number };

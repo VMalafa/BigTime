@@ -5,7 +5,6 @@ import { motion } from "framer-motion";
 import { useAuth } from "@/lib/hooks/useAuth";
 import type { SpendingPlanData } from "@/lib/store/flow-store";
 import { getHouseholdFinancials } from "@/app/actions/household";
-import { WholenessScoreRing } from "@/components/dashboard/WholenessScoreRing";
 import { CSPOverview } from "@/components/dashboard/CSPOverview";
 import { CreditHealthCard } from "@/components/dashboard/CreditHealthCard";
 import { IncomeSummaryCard } from "@/components/dashboard/IncomeSummaryCard";
@@ -147,28 +146,6 @@ export default function DashboardPage() {
       <SafeToSpendCard />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Wholeness Score */}
-        <Card padding="lg">
-          <div className="flex items-baseline justify-between mb-3">
-            <h3 className="font-serif text-lg text-text-primary">
-              Financial Wholeness
-            </h3>
-            <Link
-              href="/dashboard/automation"
-              className="text-accent-gold text-sm font-sans font-medium hover:underline"
-            >
-              Next steps →
-            </Link>
-          </div>
-          <div className="flex flex-col items-center">
-            <WholenessScoreRing score={45} />
-            <p className="text-text-secondary text-sm mt-3 text-center font-sans">
-              Your score improves as you automate, pay down debt, and check in
-              monthly.
-            </p>
-          </div>
-        </Card>
-
         {/* Monthly Income + Bonuses */}
         <IncomeSummaryCard
           monthlyIncome={monthlyIncome}
