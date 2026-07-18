@@ -11,6 +11,13 @@ import { useState } from "react";
 import Link from "next/link";
 import type { MoneyMoment } from "@/lib/timeline/money-moments";
 import { buildIcsExport } from "@/lib/timeline/ics-export";
+import {
+  EXTRA_ASSIGNEES,
+  assigneeChipLabel,
+  matchesPersonFilter,
+  type ExtraAssignee,
+} from "@/lib/timeline/assignee";
+import { assignEventPerson } from "@/app/actions/events";
 import { Button } from "@/components/ui/Button";
 
 export interface TimelineEventItem {
@@ -27,6 +34,14 @@ export interface TimelineEventItem {
   sourceName: string;
   profileId: string | null;
   profileName: string | null;
+  assigneeExtra: ExtraAssignee | null;
+}
+
+/** The assignable slice of an Event — server truth or optimistic override. */
+interface Assignment {
+  profileId: string | null;
+  profileName: string | null;
+  assigneeExtra: ExtraAssignee | null;
 }
 
 export interface TimelineFilterSource {
@@ -104,6 +119,40 @@ export function TimelineStream({
   const [person, setPerson] = useState<string>("ALL");
   // Export selection (#58): Events only — money moments stay in-app in v1.
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Person chips (#72): optimistic overrides on top of server truth, and
+  // which card's picker is open. Awaited per-intent action + rollback.
+  const [assignments, setAssignments] = useState<Map<string, Assignment>>(
+    new Map()
+  );
+  const [pickerFor, setPickerFor] = useState<string | null>(null);
+
+  const effectiveAssignment = (event: TimelineEventItem): Assignment =>
+    assignments.get(event.id) ?? {
+      profileId: event.profileId,
+      profileName: event.profileName,
+      assigneeExtra: event.assigneeExtra,
+    };
+
+  async function assign(event: TimelineEventItem, next: Assignment) {
+    const previous = effectiveAssignment(event);
+    setPickerFor(null);
+    setAssignments((current) => new Map(current).set(event.id, next));
+    try {
+      const result = await assignEventPerson(
+        event.id,
+        next.profileId
+          ? { kind: "PROFILE", profileId: next.profileId }
+          : next.assigneeExtra
+            ? { kind: "EXTRA", extra: next.assigneeExtra }
+            : null
+      );
+      if (result.error) throw new Error(result.error);
+    } catch {
+      // Rollback (#29): a failed write may never leave a chip standing —
+      // that would be a lie about who's got it.
+      setAssignments((current) => new Map(current).set(event.id, previous));
+    }
+  }
 
   const categoryKey = (sourceId: string, category: string) =>
     `${sourceId}:${category}`;
@@ -131,9 +180,7 @@ export function TimelineStream({
       .filter(
         (e) => !mutedCategories.has(categoryKey(e.sourceId, e.category))
       )
-      .filter(
-        (e) => person === "ALL" || e.profileId === null || e.profileId === person
-      )
+      .filter((e) => matchesPersonFilter(person, effectiveAssignment(e)))
       .map((e): Row => ({ type: "event", date: e.date, event: e })),
     ...moments
       .filter((m) => !mutedMoney.has(m.kind))
@@ -197,10 +244,10 @@ export function TimelineStream({
     <div className="space-y-6">
       {/* --- Filter chips --- */}
       <div className="space-y-2">
-        {people.length > 1 && (
+        {(people.length > 0 || events.length > 0) && (
           <div className="flex flex-wrap gap-2 items-center">
             <span className="text-xs font-sans text-text-secondary">Who</span>
-            {[{ id: "ALL", name: "Everyone" }, ...people].map((p) => (
+            {[{ id: "ALL", name: "Everyone" }, ...people, ...EXTRA_ASSIGNEES].map((p) => (
               <button
                 key={p.id}
                 type="button"
@@ -352,7 +399,6 @@ export function TimelineStream({
                       <span className="rounded-full bg-bg-secondary px-2 py-0.5">
                         {row.event.category}
                       </span>
-                      {row.event.profileName ? ` · ${row.event.profileName}` : ""}
                       {row.event.costCents !== null
                         ? ` · ${formatCents(row.event.costCents)}`
                         : ""}
@@ -360,6 +406,90 @@ export function TimelineStream({
                         <span className="italic"> · {row.event.note}</span>
                       ) : null}
                     </p>
+                    {/* Person chip (#72): assign/clear in two taps. */}
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                      {(() => {
+                        const assignment = effectiveAssignment(row.event);
+                        const label = assigneeChipLabel(assignment);
+                        return (
+                          <button
+                            type="button"
+                            aria-label={
+                              label
+                                ? `${row.event.title} assigned to ${label} — change`
+                                : `Assign ${row.event.title}`
+                            }
+                            onClick={() =>
+                              setPickerFor((current) =>
+                                current === row.event.id ? null : row.event.id
+                              )
+                            }
+                            className={`rounded-full border px-2 py-0.5 text-xs font-sans transition-colors ${
+                              label
+                                ? "border-accent-gold/50 bg-accent-gold/10 text-text-primary"
+                                : "border-dashed border-bg-secondary text-text-secondary hover:border-accent-gold/50"
+                            }`}
+                          >
+                            {label ?? "+ assign"}
+                          </button>
+                        );
+                      })()}
+                      {pickerFor === row.event.id && (
+                        <span
+                          role="group"
+                          aria-label={`Assign ${row.event.title} to`}
+                          className="flex flex-wrap items-center gap-1.5"
+                        >
+                          {[
+                            ...people,
+                            ...EXTRA_ASSIGNEES.map((extra) => ({
+                              id: extra.id,
+                              name: extra.name,
+                            })),
+                          ].map((choice) => (
+                            <button
+                              key={choice.id}
+                              type="button"
+                              onClick={() =>
+                                assign(
+                                  row.event,
+                                  people.some((p) => p.id === choice.id)
+                                    ? {
+                                        profileId: choice.id,
+                                        profileName: choice.name,
+                                        assigneeExtra: null,
+                                      }
+                                    : {
+                                        profileId: null,
+                                        profileName: null,
+                                        assigneeExtra:
+                                          choice.id as ExtraAssignee,
+                                      }
+                                )
+                              }
+                              className="rounded-full border border-bg-secondary bg-white px-2 py-0.5 text-xs font-sans text-text-primary hover:border-accent-gold transition-colors"
+                            >
+                              {choice.name}
+                            </button>
+                          ))}
+                          {assigneeChipLabel(effectiveAssignment(row.event)) && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                assign(row.event, {
+                                  profileId: null,
+                                  profileName: null,
+                                  assigneeExtra: null,
+                                })
+                              }
+                              className="rounded-full border border-bg-secondary bg-white px-2 py-0.5 text-xs font-sans text-text-secondary hover:border-error/60 transition-colors"
+                            >
+                              No one
+                            </button>
+                          )}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               ) : (

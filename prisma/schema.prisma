@@ -523,11 +523,20 @@ model Event {
   // when null.
   profileId        String?
   profile          Profile?       @relation(fields: [profileId], references: [id], onDelete: SetNull)
+  // The two fixed non-Profile assignees (#72) — a nullable enum beats a
+  // fake Profile. Mutually exclusive with profileId (the actions enforce
+  // it); both null = unassigned.
+  assigneeExtra    EventAssigneeExtra?
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
 
   @@unique([calendarSourceId, startDate, normalizedTitle])
   @@index([calendarSourceId, startDate])
+}
+
+enum EventAssigneeExtra {
+  SITTER
+  EXTENDED_DAY
 }
 
 model CheckIn {

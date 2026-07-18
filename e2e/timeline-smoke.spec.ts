@@ -74,6 +74,78 @@ test("merged stream: school events + money rhythm interleaved; drafts and dismis
   await expect(page.getByText("E2E School Holiday")).toBeVisible();
 });
 
+// #72: person chip assignment (two taps, awaited action) + cost display.
+test("person chips: assign in two taps, persists, filters include extras; cost renders plainly", async ({
+  page,
+}) => {
+  await page.goto("/auth/login");
+  await page.getByLabel("Email").fill(E2E_SPENDING_EMAIL);
+  await page.getByLabel("Password").fill(e2eSpendingPassword());
+  await page.getByRole("button", { name: "Sign In", exact: true }).click();
+  await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 });
+
+  await page.goto("/dashboard/timeline");
+  const dismissal = page
+    .locator('[data-timeline-kind="event"]')
+    .filter({ hasText: "Noon Dismissal – E2E School" });
+  await expect(dismissal).toBeVisible();
+
+  // Cost display (#72): plain information on the card, no side effects.
+  await expect(dismissal).toContainText("$40");
+
+  // Tap 1: open the picker; tap 2: Extended Day. Chip appears.
+  await dismissal
+    .getByRole("button", { name: "Assign Noon Dismissal – E2E School" })
+    .click();
+  await dismissal
+    .getByRole("group")
+    .getByRole("button", { name: "Extended Day", exact: true })
+    .click();
+  await expect(
+    dismissal.getByRole("button", { name: /assigned to Extended Day/ })
+  ).toBeVisible();
+
+  // The awaited action persisted it: a full reload shows the same chip.
+  // Poll with reloads — the optimistic chip renders before the server
+  // write lands, and a same-tick reload can beat it (the #13 scenario).
+  await expect(async () => {
+    await page.reload();
+    await expect(
+      dismissal.getByRole("button", { name: /assigned to Extended Day/ })
+    ).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+
+  // Person filter chips include the extras. "Sitter" hides the Extended
+  // Day event but keeps the unassigned holiday (household-wide rule);
+  // "Extended Day" shows both.
+  await page
+    .locator("button", { hasText: /^Sitter$/ })
+    .first()
+    .click();
+  await expect(page.getByText("Noon Dismissal – E2E School")).toHaveCount(0);
+  await expect(page.getByText("E2E School Holiday")).toBeVisible();
+  await page
+    .locator("button", { hasText: /^Extended Day$/ })
+    .first()
+    .click();
+  await expect(page.getByText("Noon Dismissal – E2E School")).toBeVisible();
+  await expect(page.getByText("E2E School Holiday")).toBeVisible();
+
+  // Clear in two taps; the chip reverts to unassigned.
+  await dismissal
+    .getByRole("button", { name: /assigned to Extended Day/ })
+    .click();
+  await dismissal
+    .getByRole("group")
+    .getByRole("button", { name: "No one" })
+    .click();
+  await expect(
+    dismissal.getByRole("button", {
+      name: "Assign Noon Dismissal – E2E School",
+    })
+  ).toBeVisible();
+});
+
 // #58: select Events on the timeline, download one .ics in the scheduler's
 // exact format, and prove the round-trip — re-importing the export through
 // #55 raises nothing new.
