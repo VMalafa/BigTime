@@ -66,6 +66,20 @@ _Avoid_: Windfall rule, allocation policy
 The one-confirm prompt raised when the feed detects a non-paycheck windfall: the Bonus Plan applied to real dollars, with concrete payoff impact shown. Bonus deposits never inflate Safe-to-Spend.
 _Avoid_: Bonus alert, notification
 
+### Timeline
+
+**Household Timeline**:
+The shared, top-level surface where Events and the money rhythm (paydays, Earmark due dates, Money Dates, Milestones) read as one merged stream — household-wide, identical for both partners, filterable by person and category. Its success test is the Sunday scan: either parent reads the coming two weeks in under a minute.
+_Avoid_: Calendar page, schedule, agenda
+
+**Event**:
+A dated life moment on the Household Timeline — a school holiday, a noon dismissal, a carnival. Belongs to the whole household. Distinct from a Transaction (a money movement) and never itself an Earmark — though an Event carrying a cost may _raise_ one, only ever with the household's confirmation.
+_Avoid_: Appointment, entry, occasion, moment (reserved for Bonus Moment)
+
+**Calendar Source**:
+Where a batch of Events came from — an imported school calendar, a manual batch. Each Calendar Source keeps the category vocabulary its artifact uses (Corbett's holiday / dismissal / break / event / academic; another source may differ) — the app never forces a universal Event taxonomy. Owns re-import diffing when the source reissues ("UPDATED 6/3/26"); imported Events are drafts until ratified — the feed drafts, the human ratifies.
+_Avoid_: Feed (reserved for the bank aggregator), import, upload
+
 ### Goals & motivation
 
 **Goal**:
