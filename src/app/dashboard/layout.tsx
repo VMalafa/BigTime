@@ -15,6 +15,7 @@ interface NavItem {
 // dashboard home screen itself and don't need to compete for tab-bar space.
 const mobileKeys = new Set([
   "/dashboard",
+  "/dashboard/timeline",
   "/dashboard/income",
   "/dashboard/debts",
   "/dashboard/credit",
@@ -31,6 +32,19 @@ const navItems: NavItem[] = [
         <rect x="11" y="2" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
         <rect x="2" y="11" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
         <rect x="11" y="11" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+      </svg>
+    ),
+  },
+  // The Household Timeline is a peer surface beside the money truth
+  // (ratified in #32); #24 owns the final IA — this is minimal placement.
+  {
+    label: "Timeline",
+    href: "/dashboard/timeline",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="3" y="4" width="14" height="13" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+        <path d="M3 8h14M7 2v4M13 2v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        <path d="M6 12h3M6 14.5h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
       </svg>
     ),
   },
