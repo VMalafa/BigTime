@@ -18,13 +18,37 @@ export async function getHouseholdFinancials() {
       debts: true,
       incomeSources: true,
       bonusItems: true,
-      spendingPlan: true,
+      spendingPlan: { include: { fixedCostLineItems: true } },
       moneyDials: true,
       moneyScripts: true,
     },
   });
 
   if (profiles.length === 0) return null;
+
+  // The default profile's plan — the dashboard home reads server data
+  // only (#53), no store fallback.
+  const planRow =
+    profiles.find((p) => p.isDefault)?.spendingPlan ??
+    profiles.find((p) => p.spendingPlan)?.spendingPlan ??
+    null;
+  const spendingPlan = planRow
+    ? {
+        fixedCostsPercent: planRow.fixedCostsPercent,
+        savingsPercent: planRow.savingsPercent,
+        investmentsPercent: planRow.investmentsPercent,
+        guiltFreePercent: planRow.guiltFreePercent,
+        fixedCostsOverridden: planRow.fixedCostsOverridden,
+        fixedCostLineItems: planRow.fixedCostLineItems.map((i) => ({
+          id: i.id,
+          category: i.category,
+          name: i.name,
+          monthlyAmount: Number(i.monthlyAmount),
+          note: i.note ?? undefined,
+          sortOrder: i.sortOrder,
+        })),
+      }
+    : null;
 
   // Aggregate across all profiles
   const allDebts = profiles.flatMap((p) =>
@@ -93,6 +117,7 @@ export async function getHouseholdFinancials() {
     debts: allDebts,
     income: allIncome,
     bonuses: allBonuses,
+    spendingPlan,
     totalDebt,
     totalMinPayments,
     totalMonthlyIncome,

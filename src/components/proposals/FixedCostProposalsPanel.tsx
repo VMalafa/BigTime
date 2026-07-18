@@ -8,7 +8,7 @@ import {
 } from "@/app/actions/proposals";
 import type { FixedCostProposal } from "@/lib/proposals/proposals";
 import { FIXED_COST_CATEGORIES } from "@/lib/constants/csp-ranges";
-import { useFlowStore } from "@/lib/store/flow-store";
+import { planCache } from "@/lib/hooks/useSpendingPlan";
 import { generateId } from "@/lib/utils/validation";
 import { formatCurrency } from "@/lib/utils/format";
 import { Button } from "@/components/ui/Button";
@@ -47,10 +47,8 @@ function proposalLine(proposal: FixedCostProposal): string {
 }
 
 export function FixedCostProposalsPanel() {
-  const addFixedCostLineItem = useFlowStore((s) => s.addFixedCostLineItem);
-  const lineItemCount = useFlowStore(
-    (s) => s.spendingPlan?.fixedCostLineItems.length ?? 0
-  );
+  const lineItemCount =
+    planCache.use()?.fixedCostLineItems.length ?? 0;
   const [confirmAll, setConfirmAll] = useState<FixedCostProposal[]>([]);
   const [individual, setIndividual] = useState<FixedCostProposal[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -78,29 +76,43 @@ export function FixedCostProposalsPanel() {
     restoreCards: () => void
   ) {
     setError(null);
-    const previousPlan = useFlowStore.getState().spendingPlan;
-    proposals.forEach((proposal, index) => {
-      addFixedCostLineItem({
-        id: generateId(),
-        category: proposal.fixedCostCategory as never,
-        name: proposal.name,
-        monthlyAmount: proposal.monthlyAmountCents / 100,
-        note: "From your linked accounts",
-        sortOrder: lineItemCount + index,
-      });
+    const previousPlan = planCache.get();
+    planCache.set((plan) => {
+      const base = plan ?? {
+        fixedCostsPercent: 0,
+        savingsPercent: 0,
+        investmentsPercent: 0,
+        guiltFreePercent: 0,
+        fixedCostsOverridden: false,
+        fixedCostLineItems: [],
+      };
+      return {
+        ...base,
+        fixedCostLineItems: [
+          ...base.fixedCostLineItems,
+          ...proposals.map((proposal, index) => ({
+            id: generateId(),
+            category: proposal.fixedCostCategory as never,
+            name: proposal.name,
+            monthlyAmount: proposal.monthlyAmountCents / 100,
+            note: "From your linked accounts",
+            sortOrder: lineItemCount + index,
+          })),
+        ],
+      };
     });
     startTransition(async () => {
       const result = await confirmFixedCostProposals(
         proposals.map((p) => p.merchantPattern)
       );
       if (result.error) {
-        useFlowStore.setState({ spendingPlan: previousPlan });
+        planCache.set(previousPlan);
         restoreCards();
         setError(result.error);
         return;
       }
       // Swap the optimistic rows for the server plan — stable ids.
-      if (result.plan) useFlowStore.setState({ spendingPlan: result.plan });
+      if (result.plan) planCache.set(result.plan);
     });
   }
 

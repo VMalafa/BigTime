@@ -10,6 +10,7 @@ import { RealityCheckCard } from "@/components/flow/RealityCheckCard";
 import { Button } from "@/components/ui/Button";
 import { useFlowStore, type SpendingPlanData } from "@/lib/store/flow-store";
 import { useSpendingPlan } from "@/lib/hooks/useSpendingPlan";
+import { useIncomeData } from "@/lib/hooks/useIncomeData";
 import { CSP_RANGES } from "@/lib/constants/csp-ranges";
 import { formatCurrency, formatPercent } from "@/lib/utils/format";
 
@@ -24,22 +25,19 @@ const DEFAULT_PLAN: SpendingPlanData = {
 
 export default function SpendingPlanPage() {
   const router = useRouter();
-  const {
-    spendingPlan,
-    setCurrentStep,
-    setFixedCostsOverridden,
-    getTotalMonthlyIncome,
-    getFixedCostsTotalMonthly,
-    getSuggestedFixedCostsPercent,
-  } = useFlowStore();
+  const setCurrentStep = useFlowStore((s) => s.setCurrentStep);
   // Server-authoritative (#50): Continue awaits one save-the-plan intent —
   // no debounced flush left to lose on a fast navigation.
-  const { savePlan, error: saveError } = useSpendingPlan();
+  const { spendingPlan, savePlan, error: saveError } = useSpendingPlan();
+  const { totalMonthlyIncome: totalIncome } = useIncomeData();
   const [isSaving, setIsSaving] = useState(false);
 
-  const totalIncome = getTotalMonthlyIncome();
-  const totalFixedCosts = getFixedCostsTotalMonthly();
-  const suggestedFixedCostsPercent = getSuggestedFixedCostsPercent();
+  const totalFixedCosts = (spendingPlan?.fixedCostLineItems ?? []).reduce(
+    (sum, i) => sum + i.monthlyAmount,
+    0
+  );
+  const suggestedFixedCostsPercent =
+    totalIncome > 0 ? Math.round((totalFixedCosts / totalIncome) * 100) : 0;
 
   const initial: SpendingPlanData = spendingPlan ?? DEFAULT_PLAN;
   // Pre-seed the Fixed Costs slider with the derived value the first time the
@@ -95,13 +93,11 @@ export default function SpendingPlanPage() {
       if (!next.fixedCostsOverridden) {
         next = { ...next, fixedCostsOverridden: true };
       }
-      setFixedCostsOverridden(true);
     }
     setValues(next);
   }
 
   function handleResetToSuggested() {
-    setFixedCostsOverridden(false);
     setValues((prev) => ({
       ...prev,
       fixedCostsPercent: suggestedFixedCostsPercent,

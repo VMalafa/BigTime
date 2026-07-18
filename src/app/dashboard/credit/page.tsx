@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import { useFlowStore } from "@/lib/store/flow-store";
+import { useDebts } from "@/lib/hooks/useDebts";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -63,7 +63,7 @@ const DEFAULT_PLAN: CreditPlanData = {
 
 export default function CreditDashboardPage() {
   const { isAuthenticated } = useAuth();
-  const debts = useFlowStore((s) => s.debts);
+  const { debts } = useDebts();
   const [plan, setPlan] = useState<CreditPlanData>(DEFAULT_PLAN);
   const [isPending, startTransition] = useTransition();
 

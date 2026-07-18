@@ -4,8 +4,11 @@ import { useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { useFlowStore } from "@/lib/store/flow-store";
 import type { DialCategory } from "@/lib/store/flow-store";
+import { useReflection } from "@/lib/hooks/useReflection";
+import { useDebts } from "@/lib/hooks/useDebts";
+import { useIncomeData } from "@/lib/hooks/useIncomeData";
+import { useSpendingPlan } from "@/lib/hooks/useSpendingPlan";
 import { StepWrapper } from "@/components/flow/StepWrapper";
 import { FlowNavigation } from "@/components/flow/FlowNavigation";
 import { WholenessScoreRing } from "@/components/dashboard/WholenessScoreRing";
@@ -30,15 +33,12 @@ const REVOLVING_TYPES = new Set([
 
 export default function SummaryPage() {
   const router = useRouter();
-  const scripts = useFlowStore((s) => s.scripts);
-  const moneyType = useFlowStore((s) => s.moneyType);
-  const debts = useFlowStore((s) => s.debts);
-  const incomeSources = useFlowStore((s) => s.incomeSources);
-  const spendingPlan = useFlowStore((s) => s.spendingPlan);
-  const moneyDials = useFlowStore((s) => s.moneyDials);
-  const getTotalMonthlyIncome = useFlowStore((s) => s.getTotalMonthlyIncome);
-
-  const totalIncome = getTotalMonthlyIncome();
+  // Server truth via the per-intent hooks (#53) — nothing here reads the
+  // UI-state store.
+  const { scripts, moneyType, moneyDials } = useReflection();
+  const { debts } = useDebts();
+  const { incomeSources, totalMonthlyIncome: totalIncome } = useIncomeData();
+  const { spendingPlan } = useSpendingPlan();
 
   // --- Wholeness Score ---
   const wholenessScore = useMemo(() => {

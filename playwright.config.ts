@@ -10,6 +10,10 @@ export default defineConfig({
   timeout: 90_000,
   expect: { timeout: 15_000 },
   fullyParallel: false,
+  // One worker: the dev server's Prisma pool runs at connection_limit=1
+  // (pgbouncer DATABASE_URL), so concurrent spec files starve the pool and
+  // page renders die with P2024 timeouts.
+  workers: 1,
   retries: process.env.CI ? 1 : 0,
   reporter: [["list"]],
   use: {

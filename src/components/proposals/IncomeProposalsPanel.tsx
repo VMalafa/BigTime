@@ -7,7 +7,7 @@ import {
   getFlowProposals,
 } from "@/app/actions/proposals";
 import type { IncomeProposal } from "@/lib/proposals/proposals";
-import { useFlowStore } from "@/lib/store/flow-store";
+import { incomeCache } from "@/lib/hooks/useIncomeData";
 import { formatCurrency } from "@/lib/utils/format";
 import { Button } from "@/components/ui/Button";
 
@@ -48,26 +48,32 @@ export function IncomeProposalsPanel() {
     setProposals((prev) =>
       prev.filter((p) => p.merchantPattern !== proposal.merchantPattern)
     );
-    const store = useFlowStore.getState();
-    const previousIncome = store.incomeSources;
+    const previousIncome = incomeCache.get();
     const tempId = `pending-${proposal.merchantPattern}`;
-    store.addIncome({
-      id: tempId,
-      name: proposal.name,
-      monthlyAmount: proposal.monthlyAmountCents / 100,
-      isAfterTax: true,
-    });
+    incomeCache.set((s) => ({
+      ...s,
+      incomeSources: [
+        ...s.incomeSources,
+        {
+          id: tempId,
+          name: proposal.name,
+          monthlyAmount: proposal.monthlyAmountCents / 100,
+          isAfterTax: true,
+        },
+      ],
+    }));
     startTransition(async () => {
       const result = await confirmIncomeProposal(proposal.merchantPattern);
       if (result.error || !result.incomeSource) {
-        useFlowStore.setState({ incomeSources: previousIncome });
+        incomeCache.set(previousIncome);
         setProposals((prev) => [...prev, proposal]);
         setError(result.error ?? "Could not confirm income. Try again.");
         return;
       }
       const confirmed = result.incomeSource;
       // Swap the optimistic row for the stable server row.
-      useFlowStore.setState((s) => ({
+      incomeCache.set((s) => ({
+        ...s,
         incomeSources: s.incomeSources.map((i) =>
           i.id === tempId ? confirmed : i
         ),

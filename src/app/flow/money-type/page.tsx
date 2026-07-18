@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useFlowStore } from "@/lib/store/flow-store";
+import { useReflection } from "@/lib/hooks/useReflection";
 import { saveMoneyType } from "@/app/actions/reflection";
 import { MONEY_TYPES, type MoneyTypeKey } from "@/lib/constants/money-types";
 import { StepWrapper } from "@/components/flow/StepWrapper";
@@ -12,8 +13,7 @@ import type { MoneyType } from "@/lib/store/flow-store";
 
 export default function MoneyTypePage() {
   const router = useRouter();
-  const moneyType = useFlowStore((s) => s.moneyType);
-  const setMoneyType = useFlowStore((s) => s.setMoneyType);
+  const { moneyType, setMoneyTypeLocal } = useReflection();
   const setCurrentStep = useFlowStore((s) => s.setCurrentStep);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -21,11 +21,11 @@ export default function MoneyTypePage() {
   // with optimistic UI + rollback.
   async function handleSelect(key: MoneyType) {
     setSaveError(null);
-    const previous = useFlowStore.getState().moneyType;
-    setMoneyType(key);
+    const previous = moneyType;
+    setMoneyTypeLocal(key);
     const result = await saveMoneyType(key);
     if (result.error) {
-      useFlowStore.setState({ moneyType: previous });
+      setMoneyTypeLocal(previous);
       setSaveError(result.error);
     }
   }

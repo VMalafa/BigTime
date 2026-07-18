@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import Link from "next/link";
-import { useFlowStore } from "@/lib/store/flow-store";
+import { useIncomeData } from "@/lib/hooks/useIncomeData";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { IncomeEntryForm } from "@/components/flow/IncomeEntryForm";
@@ -11,12 +11,16 @@ import { IncomeProposalsPanel } from "@/components/proposals/IncomeProposalsPane
 import { formatCurrency } from "@/lib/utils/format";
 
 export default function IncomeDashboardPage() {
-  const monthlyIncome = useFlowStore((s) => s.getTotalMonthlyIncome());
-  const monthlyBonus = useFlowStore((s) => s.getMonthlyBonusEquivalent());
-  const annualBonus = useFlowStore((s) => s.getTotalAnnualBonusNet());
-  const effectiveMonthly = useFlowStore((s) => s.getEffectiveMonthlyIncome());
-  const bonusCount = useFlowStore((s) => s.bonusItems.length);
-  const incomeCount = useFlowStore((s) => s.incomeSources.length);
+  const {
+    incomeSources,
+    bonusItems,
+    totalMonthlyIncome: monthlyIncome,
+    monthlyBonusEquivalent: monthlyBonus,
+    totalAnnualBonusNet: annualBonus,
+    effectiveMonthlyIncome: effectiveMonthly,
+  } = useIncomeData();
+  const bonusCount = bonusItems.length;
+  const incomeCount = incomeSources.length;
 
   return (
     <div>

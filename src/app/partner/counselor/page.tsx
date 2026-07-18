@@ -4,7 +4,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { CounselorChat } from "@/components/partner/CounselorChat";
 import { usePartnerStore } from "@/lib/store/partner-store";
-import { useFlowStore } from "@/lib/store/flow-store";
+import { useReflection } from "@/lib/hooks/useReflection";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -15,7 +15,7 @@ export default function CounselorPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const { partnerMoneyType } = usePartnerStore();
-  const { moneyType } = useFlowStore();
+  const { moneyType } = useReflection();
 
   const handleSend = async (content: string) => {
     const userMessage: ChatMessage = { role: "user", content };

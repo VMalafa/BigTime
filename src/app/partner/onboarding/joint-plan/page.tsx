@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { JointCSPSliders } from "@/components/partner/JointCSPSliders";
 import { usePartnerStore } from "@/lib/store/partner-store";
-import { useFlowStore } from "@/lib/store/flow-store";
+import { useIncomeData } from "@/lib/hooks/useIncomeData";
 import { formatCurrency } from "@/lib/utils/format";
 import type { JointSpendingPlanData } from "@/lib/store/partner-store";
 import { COUPLES_STEPS } from "@/types/partner";
@@ -18,9 +18,7 @@ export default function JointPlanPage() {
   const jointPlan = usePartnerStore((s) => s.jointPlan);
   const setJointPlan = usePartnerStore((s) => s.setJointPlan);
   const setOnboardingStep = usePartnerStore((s) => s.setOnboardingStep);
-  const getTotalMonthlyIncome = useFlowStore((s) => s.getTotalMonthlyIncome);
-
-  const totalIncome = getTotalMonthlyIncome();
+  const { totalMonthlyIncome: totalIncome } = useIncomeData();
 
   const [plan, setPlan] = useState<JointSpendingPlanData>(
     jointPlan ?? {

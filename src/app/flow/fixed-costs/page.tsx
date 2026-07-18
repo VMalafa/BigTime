@@ -12,23 +12,21 @@ import {
   useFlowStore,
   type FixedCostLineItem,
 } from "@/lib/store/flow-store";
+import { useIncomeData } from "@/lib/hooks/useIncomeData";
+import { useSpendingPlan } from "@/lib/hooks/useSpendingPlan";
 
 export default function FixedCostsPage() {
   const router = useRouter();
-  const {
-    spendingPlan,
-    setCurrentStep,
-    getTotalMonthlyIncome,
-    getFixedCostsTotalMonthly,
-    getSuggestedFixedCostsPercent,
-  } = useFlowStore();
+  const setCurrentStep = useFlowStore((s) => s.setCurrentStep);
+  const { spendingPlan } = useSpendingPlan();
+  const { totalMonthlyIncome: totalIncome } = useIncomeData();
 
   const [editing, setEditing] = useState<FixedCostLineItem | null>(null);
 
   const items = spendingPlan?.fixedCostLineItems ?? [];
-  const totalIncome = getTotalMonthlyIncome();
-  const totalFixedCosts = getFixedCostsTotalMonthly();
-  const derivedPercent = getSuggestedFixedCostsPercent();
+  const totalFixedCosts = items.reduce((sum, i) => sum + i.monthlyAmount, 0);
+  const derivedPercent =
+    totalIncome > 0 ? Math.round((totalFixedCosts / totalIncome) * 100) : 0;
 
   function handleNext() {
     setCurrentStep(4);

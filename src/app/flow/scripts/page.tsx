@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useFlowStore } from "@/lib/store/flow-store";
+import { useReflection } from "@/lib/hooks/useReflection";
 import { saveMoneyScript } from "@/app/actions/reflection";
 import { MONEY_SCRIPTS } from "@/lib/constants/money-scripts";
 import { StepWrapper } from "@/components/flow/StepWrapper";
@@ -11,8 +12,7 @@ import { ScriptPrompt } from "@/components/flow/ScriptPrompt";
 
 export default function ScriptsPage() {
   const router = useRouter();
-  const scripts = useFlowStore((s) => s.scripts);
-  const setScript = useFlowStore((s) => s.setScript);
+  const { scripts, setScriptLocal: setScript } = useReflection();
   const setCurrentStep = useFlowStore((s) => s.setCurrentStep);
   const [saveError, setSaveError] = useState<string | null>(null);
 

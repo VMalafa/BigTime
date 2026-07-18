@@ -7,12 +7,12 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { TypeComparison } from "@/components/partner/TypeComparison";
 import { usePartnerStore } from "@/lib/store/partner-store";
-import { useFlowStore } from "@/lib/store/flow-store";
+import { useReflection } from "@/lib/hooks/useReflection";
 import { COUPLES_STEPS } from "@/types/partner";
 
 export default function TypesPage() {
   const router = useRouter();
-  const myMoneyType = useFlowStore((s) => s.moneyType);
+  const { moneyType: myMoneyType } = useReflection();
   const partnerMoneyType = usePartnerStore((s) => s.partnerMoneyType);
   const setOnboardingStep = usePartnerStore((s) => s.setOnboardingStep);
 

@@ -9,16 +9,19 @@ import { IncomeEntryForm } from "@/components/flow/IncomeEntryForm";
 import { BonusEntryForm } from "@/components/flow/BonusEntryForm";
 import { IncomeProposalsPanel } from "@/components/proposals/IncomeProposalsPanel";
 import { useFlowStore } from "@/lib/store/flow-store";
+import { useIncomeData } from "@/lib/hooks/useIncomeData";
 import { formatCurrency } from "@/lib/utils/format";
 
 export default function IncomePage() {
   const router = useRouter();
-  const incomeSources = useFlowStore((s) => s.incomeSources);
-  const bonusItems = useFlowStore((s) => s.bonusItems);
+  const {
+    incomeSources,
+    bonusItems,
+    totalMonthlyIncome: monthlyIncome,
+    monthlyBonusEquivalent: monthlyBonus,
+    effectiveMonthlyIncome: effectiveMonthly,
+  } = useIncomeData();
   const setCurrentStep = useFlowStore((s) => s.setCurrentStep);
-  const monthlyIncome = useFlowStore((s) => s.getTotalMonthlyIncome());
-  const monthlyBonus = useFlowStore((s) => s.getMonthlyBonusEquivalent());
-  const effectiveMonthly = monthlyIncome + monthlyBonus;
 
   const [showBonus, setShowBonus] = useState(bonusItems.length > 0);
 

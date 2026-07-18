@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { useFlowStore } from "@/lib/store/flow-store";
 import { useAuth } from "@/lib/hooks/useAuth";
+import type { SpendingPlanData } from "@/lib/store/flow-store";
 import { getHouseholdFinancials } from "@/app/actions/household";
 import { WholenessScoreRing } from "@/components/dashboard/WholenessScoreRing";
 import { CSPOverview } from "@/components/dashboard/CSPOverview";
@@ -38,6 +38,7 @@ interface HouseholdBonus {
 
 interface HouseholdData {
   profiles: Array<{ id: string; name: string; moneyType: string | null }>;
+  spendingPlan: SpendingPlanData | null;
   totalDebt: number;
   totalMinPayments: number;
   totalMonthlyIncome: number;
@@ -58,43 +59,28 @@ export default function DashboardPage() {
   const { isAuthenticated, loading: authLoading } = useAuth();
   const [household, setHousehold] = useState<HouseholdData | null>(null);
 
-  // Fallback to local store for unauthenticated (shouldn't reach dashboard, but safe)
-  const localDebts = useFlowStore((s) => s.debts);
-  const localPlan = useFlowStore((s) => s.spendingPlan);
-  const localIncomeSources = useFlowStore((s) => s.incomeSources);
-  const localBonusItems = useFlowStore((s) => s.bonusItems);
-  const localGetIncome = useFlowStore((s) => s.getTotalMonthlyIncome);
-  const localGetMonthlyBonus = useFlowStore(
-    (s) => s.getMonthlyBonusEquivalent
-  );
-  const localGetAnnualBonus = useFlowStore((s) => s.getTotalAnnualBonusNet);
-
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
       getHouseholdFinancials().then((data) => setHousehold(data as HouseholdData | null));
     }
   }, [isAuthenticated, authLoading]);
 
-  // Use household data if available, fall back to local store
-  const debts = household?.debts ?? localDebts;
-  const totalDebt =
-    household?.totalDebt ?? debts.reduce((sum, d) => sum + d.balance, 0);
-  const monthlyIncome = household?.totalMonthlyIncome ?? localGetIncome();
-  const monthlyBonusEquivalent =
-    household?.monthlyBonusEquivalent ?? localGetMonthlyBonus();
-  const annualBonusNet =
-    household?.totalAnnualBonusNet ?? localGetAnnualBonus();
+  // Server data only (#53): the database is the single source; before the
+  // fetch resolves the cards render their honest empty/default states.
+  const debts = household?.debts ?? [];
+  const totalDebt = household?.totalDebt ?? 0;
+  const monthlyIncome = household?.totalMonthlyIncome ?? 0;
+  const monthlyBonusEquivalent = household?.monthlyBonusEquivalent ?? 0;
+  const annualBonusNet = household?.totalAnnualBonusNet ?? 0;
   const totalIncome = monthlyIncome + monthlyBonusEquivalent || 5000;
-  const bonusCount =
-    household?.bonuses?.length ?? localBonusItems.length;
-  const hasIncomeSources =
-    (household?.totalMonthlyIncome ?? 0) > 0 || localIncomeSources.length > 0;
-  const plan = localPlan ?? defaultPlan;
+  const bonusCount = household?.bonuses?.length ?? 0;
+  const hasIncomeSources = (household?.totalMonthlyIncome ?? 0) > 0;
+  const plan = household?.spendingPlan ?? defaultPlan;
 
   // Pick the next upcoming bonus — sort by expected date ascending so the
   // earliest scheduled payout surfaces first. Items without a date sort to
   // the end (Infinity). This is pure: no Date.now() during render.
-  const allBonuses = household?.bonuses ?? localBonusItems;
+  const allBonuses = household?.bonuses ?? [];
   const sortedBonuses = [...allBonuses].sort((a, b) => {
     const ta = a.expectedDate ? new Date(a.expectedDate).getTime() : Infinity;
     const tb = b.expectedDate ? new Date(b.expectedDate).getTime() : Infinity;
@@ -137,9 +123,7 @@ export default function DashboardPage() {
           ? "acceptable"
           : "high";
 
-  const totalMinPayments =
-    household?.totalMinPayments ??
-    localDebts.reduce((sum, d) => sum + d.minimumPayment, 0);
+  const totalMinPayments = household?.totalMinPayments ?? 0;
   const estimatedPayoffMonths =
     totalMinPayments > 0 ? Math.ceil(totalDebt / totalMinPayments) : 0;
 

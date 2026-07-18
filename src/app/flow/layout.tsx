@@ -2,13 +2,14 @@
 
 import { type ReactNode } from "react";
 import { useFlowStore } from "@/lib/store/flow-store";
-import { useFlowPersistence } from "@/lib/hooks/useFlowPersistence";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { FLOW_STEPS } from "@/types/flow";
 
+// No hydrate-or-flush machinery left (#53): each flow page's hooks fetch
+// their own entities from server truth and mutate through awaited
+// per-intent actions.
 export default function FlowLayout({ children }: { children: ReactNode }) {
   const currentStep = useFlowStore((s) => s.currentStep);
-  useFlowPersistence();
 
   return (
     <div className="min-h-screen bg-bg-primary">
