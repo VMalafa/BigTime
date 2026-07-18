@@ -11,32 +11,21 @@ interface NavItem {
   icon: ReactNode;
 }
 
-// Mobile shows fewer items; Settings/Check-In are available from the
-// dashboard home screen itself and don't need to compete for tab-bar space.
-const mobileKeys = new Set([
-  "/dashboard",
-  "/dashboard/timeline",
-  "/dashboard/income",
-  "/dashboard/debts",
-  "/dashboard/credit",
-  "/dashboard/automation",
-]);
-
+// Nav end-state (#60): exactly four tabs — Home · Timeline · Spending · Plan
+// — on desktop and mobile alike. Credit and Automation keep their routes but
+// lose their slots (Automation is reachable from Settings until its One Flow
+// merge lands); Settings and Check-In launch from Home.
 const navItems: NavItem[] = [
   {
-    label: "Dashboard",
+    label: "Home",
     href: "/dashboard",
     icon: (
       <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect x="2" y="2" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
-        <rect x="11" y="2" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
-        <rect x="2" y="11" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
-        <rect x="11" y="11" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+        <path d="M3 9.5L10 3l7 6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M5 8.5V17h10V8.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     ),
   },
-  // The Household Timeline is a peer surface beside the money truth
-  // (ratified in #32); #24 owns the final IA — this is minimal placement.
   {
     label: "Timeline",
     href: "/dashboard/timeline",
@@ -45,15 +34,6 @@ const navItems: NavItem[] = [
         <rect x="3" y="4" width="14" height="13" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
         <path d="M3 8h14M7 2v4M13 2v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
         <path d="M6 12h3M6 14.5h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      </svg>
-    ),
-  },
-  {
-    label: "Income",
-    href: "/dashboard/income",
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M10 3v14M6 6h5a2.5 2.5 0 110 5H6l8 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     ),
   },
@@ -67,62 +47,31 @@ const navItems: NavItem[] = [
     ),
   },
   {
-    label: "Debts",
-    href: "/dashboard/debts",
+    label: "Plan",
+    href: "/dashboard/plan",
     icon: (
       <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M10 2v16M6 6h8M6 10h8M6 14h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      </svg>
-    ),
-  },
-  {
-    label: "Credit",
-    href: "/dashboard/credit",
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect x="2" y="5" width="16" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
-        <path d="M2 9h16" stroke="currentColor" strokeWidth="1.5" />
-        <path d="M5 13h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      </svg>
-    ),
-  },
-  {
-    label: "Automation",
-    href: "/dashboard/automation",
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="10" cy="10" r="2.5" stroke="currentColor" strokeWidth="1.5" />
-        <path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.5 4.5l1.5 1.5M14 14l1.5 1.5M4.5 15.5L6 14M14 6l1.5-1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      </svg>
-    ),
-  },
-  {
-    label: "Check-In",
-    href: "/dashboard/check-in",
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M4 10l4 4 8-8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    ),
-  },
-  {
-    label: "Settings",
-    href: "/dashboard/settings",
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="10" cy="10" r="3" stroke="currentColor" strokeWidth="1.5" />
-        <path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.93 4.93l1.41 1.41M13.66 13.66l1.41 1.41M4.93 15.07l1.41-1.41M13.66 6.34l1.41-1.41" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        <circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.5" />
+        <path d="M10 3v7l5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     ),
   },
 ];
+
+// Sub-views that light up a parent tab: income and debts belong to the Plan
+// section; the calendar ingestion surface is entered from the Timeline.
+const sectionPrefixes: Record<string, string[]> = {
+  "/dashboard/plan": ["/dashboard/plan", "/dashboard/income", "/dashboard/debts"],
+  "/dashboard/timeline": ["/dashboard/timeline", "/dashboard/calendar"],
+};
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
 
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === "/dashboard";
-    return pathname.startsWith(href);
+    const prefixes = sectionPrefixes[href] ?? [href];
+    return prefixes.some((prefix) => pathname.startsWith(prefix));
   };
 
   return (
@@ -173,12 +122,10 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         </div>
       </main>
 
-      {/* Mobile bottom tab bar — trimmed to the 5 highest-use destinations */}
+      {/* Mobile bottom tab bar — the same four tabs as desktop (#60) */}
       <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-bg-secondary z-30">
         <div className="flex items-center justify-around h-16">
-          {navItems
-            .filter((item) => mobileKeys.has(item.href))
-            .map((item) => {
+          {navItems.map((item) => {
             const active = isActive(item.href);
             return (
               <Link
