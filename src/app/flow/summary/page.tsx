@@ -11,7 +11,6 @@ import { useIncomeData } from "@/lib/hooks/useIncomeData";
 import { useSpendingPlan } from "@/lib/hooks/useSpendingPlan";
 import { StepWrapper } from "@/components/flow/StepWrapper";
 import { FlowNavigation } from "@/components/flow/FlowNavigation";
-import { WholenessScoreRing } from "@/components/dashboard/WholenessScoreRing";
 import { CSPOverview } from "@/components/dashboard/CSPOverview";
 import { CreditHealthCard } from "@/components/dashboard/CreditHealthCard";
 import { AuthorQuote } from "@/components/shared/AuthorQuote";
@@ -35,26 +34,10 @@ export default function SummaryPage() {
   const router = useRouter();
   // Server truth via the per-intent hooks (#53) — nothing here reads the
   // UI-state store.
-  const { scripts, moneyType, moneyDials } = useReflection();
+  const { moneyType, moneyDials } = useReflection();
   const { debts } = useDebts();
   const { incomeSources, totalMonthlyIncome: totalIncome } = useIncomeData();
   const { spendingPlan } = useSpendingPlan();
-
-  // --- Wholeness Score ---
-  const wholenessScore = useMemo(() => {
-    let completed = 0;
-    const total = 6;
-
-    if (Object.keys(scripts).length > 0) completed++;
-    if (moneyType) completed++;
-    if (debts.length > 0 || moneyType !== null) completed++; // has debts or acknowledged
-    if (incomeSources.length > 0) completed++;
-    if (spendingPlan) completed++;
-    const hasDialsSet = Object.values(moneyDials).some((v) => v !== 5);
-    if (hasDialsSet) completed++;
-
-    return Math.round((completed / total) * 100);
-  }, [scripts, moneyType, debts, incomeSources, spendingPlan, moneyDials]);
 
   // --- Money Dials sorted ---
   const sortedDials = useMemo(() => {
@@ -122,16 +105,6 @@ export default function SummaryPage() {
       subtitle="Here's everything in one place."
     >
       <div className="flex flex-col gap-8">
-        {/* Wholeness Score */}
-        <motion.section
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: sectionDelay * 0, duration: 0.4 }}
-          className="flex justify-center"
-        >
-          <WholenessScoreRing score={wholenessScore} size={160} />
-        </motion.section>
-
         {/* Money Type */}
         {moneyType && (
           <motion.section

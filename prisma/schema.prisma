@@ -195,6 +195,9 @@ enum DialCategory {
   GIVING
 }
 
+/// Deprecated (#59): the Wholeness Score violated the Honesty Rule and no code
+/// reads or writes this model. The table is kept so no destructive migration
+/// runs against the live database; dropping it is deferred to a later cleanup.
 model WholenessScore {
   id              String   @id @default(uuid())
   userId          String   @unique
