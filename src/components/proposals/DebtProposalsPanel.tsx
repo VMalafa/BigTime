@@ -7,17 +7,18 @@ import {
   getFlowProposals,
 } from "@/app/actions/proposals";
 import type { DebtProposal } from "@/lib/proposals/proposals";
-import { useFlowStore, type DebtType } from "@/lib/store/flow-store";
+import { useDebts } from "@/lib/hooks/useDebts";
 import { formatCurrency } from "@/lib/utils/format";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 
 // Debt Proposals (CONTEXT.md): unmapped CREDIT_CARD/LOAN Linked Accounts.
 // The feed owns the name and balance; only APR and minimum payment need a
-// human. Confirming creates the Debt and the Mapping in one step.
+// human. Confirming creates the Debt and the Mapping in one step
+// server-side; the page then re-reads — no hand-kept store mirror (#51).
 
 export function DebtProposalsPanel() {
-  const addDebt = useFlowStore((s) => s.addDebt);
+  const { refresh } = useDebts();
   const [proposals, setProposals] = useState<DebtProposal[]>([]);
   const [drafts, setDrafts] = useState<Record<string, { apr: string; minimum: string }>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -66,16 +67,9 @@ export function DebtProposalsPanel() {
         minimumPaymentCents: Math.round(minimum * 100),
       });
       if (result.debt) {
-        // Mirror into the flow store; authenticated persistence keeps DB
-        // and store consistent from here.
-        addDebt({
-          id: result.debt.id,
-          name: result.debt.name,
-          balance: result.debt.balanceCents / 100,
-          apr: result.debt.apr,
-          minimumPayment: result.debt.minimumPaymentCents / 100,
-          debtType: result.debt.debtType as DebtType,
-        });
+        // The Debt + Mapping were written server-side; re-read the one
+        // source instead of mirroring by hand.
+        await refresh();
       } else if (result.error) {
         setProposals((prev) => [proposal, ...prev]);
         setErrors((prev) => ({

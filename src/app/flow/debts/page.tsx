@@ -8,13 +8,17 @@ import { DebtEntryForm } from "@/components/flow/DebtEntryForm";
 import { DebtProposalsPanel } from "@/components/proposals/DebtProposalsPanel";
 import { DebtList } from "@/components/flow/DebtList";
 import { useFlowStore } from "@/lib/store/flow-store";
+import { useDebts } from "@/lib/hooks/useDebts";
 import { formatCurrency } from "@/lib/utils/format";
 
 const REVOLVING_TYPES = ["CREDIT_CARD", "OTHER_REVOLVING"];
 
 export default function DebtsPage() {
   const router = useRouter();
-  const { debts, removeDebt, setCurrentStep } = useFlowStore();
+  const setCurrentStep = useFlowStore((s) => s.setCurrentStep);
+  // Server-authoritative (#51): the list is server truth, shared with the
+  // dashboard debts page; removal is an awaited per-intent action.
+  const { debts, removeDebt } = useDebts();
 
   const totalDebt = debts.reduce((sum, d) => sum + d.balance, 0);
   const totalMinPayments = debts.reduce((sum, d) => sum + d.minimumPayment, 0);
@@ -66,7 +70,11 @@ export default function DebtsPage() {
           </motion.div>
         )}
 
-        <DebtList debts={debts} onEdit={handleEdit} onRemove={removeDebt} />
+        <DebtList
+          debts={debts}
+          onEdit={handleEdit}
+          onRemove={(id) => void removeDebt(id)}
+        />
 
         {debts.length > 0 && (
           <motion.div

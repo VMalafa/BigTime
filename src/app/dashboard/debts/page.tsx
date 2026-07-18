@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useFlowStore, type DebtEntry } from "@/lib/store/flow-store";
+import { type DebtEntry } from "@/lib/store/flow-store";
+import { useDebts } from "@/lib/hooks/useDebts";
 import { getMappedDebtCaptions } from "@/app/actions/aggregator";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -54,21 +55,23 @@ function generatePayoffData(debt: DebtEntry): { month: number; balance: number }
 function DebtCard({
   debt,
   syncCaption,
+  onUpdateBalance,
 }: {
   debt: DebtEntry;
   syncCaption?: SyncCaption;
+  onUpdateBalance: (id: string, balance: number) => Promise<boolean>;
 }) {
-  const updateDebt = useFlowStore((s) => s.updateDebt);
   const [editing, setEditing] = useState(false);
   const [newBalance, setNewBalance] = useState(debt.balance.toString());
 
   const isPaidOff = debt.balance <= 0;
   const payoffData = generatePayoffData(debt);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const parsed = parseFloat(newBalance);
     if (!isNaN(parsed) && parsed >= 0) {
-      updateDebt(debt.id, { balance: parsed });
+      // Awaited per-intent action (#51); optimistic + rollback in the hook.
+      await onUpdateBalance(debt.id, parsed);
     }
     setEditing(false);
   };
@@ -220,7 +223,8 @@ function DebtCard({
 }
 
 export default function DebtsPage() {
-  const debts = useFlowStore((s) => s.debts);
+  // Server-authoritative (#51): one source with the flow debts page.
+  const { debts, updateDebt, error } = useDebts();
   const totalDebt = debts.reduce((sum, d) => sum + d.balance, 0);
 
   // Which debts are feed-owned, fetched fresh per view (not persisted).
@@ -298,12 +302,19 @@ export default function DebtsPage() {
             </div>
           </Card>
 
+          {error && (
+            <p role="alert" className="text-sm text-red-600 font-sans mb-4">
+              {error}
+            </p>
+          )}
+
           <div className="space-y-6">
             {debts.map((debt) => (
               <DebtCard
                 key={debt.id}
                 debt={debt}
                 syncCaption={syncCaptions[debt.id]}
+                onUpdateBalance={(id, balance) => updateDebt(id, { balance })}
               />
             ))}
           </div>

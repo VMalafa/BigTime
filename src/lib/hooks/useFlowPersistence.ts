@@ -7,7 +7,6 @@ import { loadProfileFlowData } from "@/app/actions/flow-persistence";
 import {
   persistScripts,
   persistMoneyType,
-  persistDebts,
   persistMoneyDials,
 } from "@/app/actions/flow-persistence";
 
@@ -38,14 +37,13 @@ export function useFlowPersistence() {
       if (!state._isAuthenticated || !state._isHydrated) return;
 
       // Serialize relevant state to detect actual changes. Income/bonus
-      // (#49) and the spending plan with its line items (#50) are absent by
-      // design: they are server-authoritative with awaited per-intent
-      // actions — a whole-array flush of them would reintroduce the
-      // clobbering the conversions killed.
+      // (#49), the spending plan with its line items (#50), and debts
+      // (#51) are absent by design: they are server-authoritative with
+      // awaited per-intent actions — a whole-array flush of them would
+      // reintroduce the clobbering the conversions killed.
       const stateKey = JSON.stringify({
         scripts: state.scripts,
         moneyType: state.moneyType,
-        debts: state.debts,
         moneyDials: state.moneyDials,
       });
 
@@ -59,7 +57,6 @@ export function useFlowPersistence() {
           await Promise.all([
             persistScripts(state.scripts),
             state.moneyType ? persistMoneyType(state.moneyType) : null,
-            persistDebts(state.debts),
             persistMoneyDials(state.moneyDials),
           ]);
         } catch (err) {

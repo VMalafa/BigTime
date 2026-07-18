@@ -7,7 +7,6 @@ import type {
   MoneyType,
   DebtType,
   DialCategory,
-  DebtEntry,
   BonusFrequency,
 } from "@/lib/store/flow-store";
 import type { FixedCostCategory } from "@/lib/constants/csp-ranges";
@@ -76,57 +75,10 @@ export async function persistMoneyType(moneyType: MoneyType) {
   });
 }
 
-export async function persistDebts(debts: DebtEntry[]) {
-  const profileId = await getActiveProfileId();
-  if (!profileId) return;
-
-  // Diff against existing rows instead of delete-and-recreate: Debt ids must
-  // be stable because a LinkedAccount mapping references them, and the feed
-  // owns a mapped Debt's balance — a stale client flush must never clobber a
-  // freshly synced balance.
-  const existing = await prisma.debt.findMany({
-    where: { profileId },
-    select: { id: true, linkedAccount: { select: { id: true } } },
-  });
-  const existingIds = new Set(existing.map((d) => d.id));
-  const mappedIds = new Set(
-    existing.filter((d) => d.linkedAccount).map((d) => d.id)
-  );
-  const incomingIds = new Set(debts.map((d) => d.id));
-
-  // Removing a mapped Debt also unmaps its linked account (FK is SET NULL).
-  const toDelete = existing.filter((d) => !incomingIds.has(d.id));
-  if (toDelete.length > 0) {
-    await prisma.debt.deleteMany({
-      where: { profileId, id: { in: toDelete.map((d) => d.id) } },
-    });
-  }
-
-  for (const d of debts) {
-    const shared = {
-      name: d.name,
-      apr: d.apr,
-      minimumPayment: d.minimumPayment,
-      debtType: d.debtType as DebtType,
-      creditLimit: d.creditLimit ?? null,
-      isShared: d.isShared ?? false,
-    };
-    if (existingIds.has(d.id)) {
-      await prisma.debt.update({
-        where: { id: d.id },
-        data: mappedIds.has(d.id)
-          ? shared // feed-owned balance: APR/minimum/limit stay editable
-          : { ...shared, balance: d.balance },
-      });
-    } else {
-      // Client-generated ids are UUIDs (see generateId); reusing them keeps
-      // the store and database aligned without a re-hydration roundtrip.
-      await prisma.debt.create({
-        data: { id: d.id, profileId, balance: d.balance, ...shared },
-      });
-    }
-  }
-}
+// persistDebts is gone (#51): debt mutations are awaited per-intent
+// actions in src/app/actions/debts.ts — the Mapping invariants (feed-owned
+// balance, SET NULL unmapping) moved there. loadProfileFlowData still
+// returns debts for the store's read mirror.
 
 // persistIncomeSources / persistBonusItems are gone (#49): income and bonus
 // mutations are awaited per-intent actions in src/app/actions/income.ts —
