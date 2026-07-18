@@ -3,13 +3,13 @@
 import { useState } from "react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
-import { useFlowStore, type FixedCostLineItem } from "@/lib/store/flow-store";
+import { type FixedCostLineItem } from "@/lib/store/flow-store";
+import { useSpendingPlan } from "@/lib/hooks/useSpendingPlan";
 import {
   FIXED_COST_CATEGORIES,
   FIXED_COST_MAX_AMOUNT,
   type FixedCostCategory,
 } from "@/lib/constants/csp-ranges";
-import { generateId } from "@/lib/utils/validation";
 
 interface FixedCostFormProps {
   // Consumers pass a `key` prop (e.g. `editing?.id ?? "new"`) so this
@@ -20,8 +20,9 @@ interface FixedCostFormProps {
 }
 
 export function FixedCostForm({ editing, onDone }: FixedCostFormProps) {
-  const { spendingPlan, addFixedCostLineItem, updateFixedCostLineItem } =
-    useFlowStore();
+  // Server-authoritative (#50): awaited per-intent actions with optimistic
+  // UI + rollback; line-item ids are server-generated and stable.
+  const { addLineItem, updateLineItem, error: serverError } = useSpendingPlan();
 
   const [category, setCategory] = useState<FixedCostCategory>(
     editing?.category ?? "HOUSING"
@@ -31,6 +32,7 @@ export function FixedCostForm({ editing, onDone }: FixedCostFormProps) {
     editing ? String(editing.monthlyAmount) : ""
   );
   const [note, setNote] = useState(editing?.note ?? "");
+  const [isSaving, setIsSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   function validate(): { ok: boolean; value: number } {
@@ -49,32 +51,25 @@ export function FixedCostForm({ editing, onDone }: FixedCostFormProps) {
     return { ok: Object.keys(next).length === 0, value: parsed };
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const { ok, value } = validate();
     if (!ok) return;
 
     const trimmedNote = note.trim();
+    const input = {
+      category,
+      name: name.trim(),
+      monthlyAmount: value,
+      note: trimmedNote.length > 0 ? trimmedNote : undefined,
+    };
 
-    if (editing) {
-      updateFixedCostLineItem(editing.id, {
-        category,
-        name: name.trim(),
-        monthlyAmount: value,
-        note: trimmedNote.length > 0 ? trimmedNote : undefined,
-      });
-    } else {
-      const nextSortOrder =
-        spendingPlan?.fixedCostLineItems.length ?? 0;
-      addFixedCostLineItem({
-        id: generateId(),
-        category,
-        name: name.trim(),
-        monthlyAmount: value,
-        note: trimmedNote.length > 0 ? trimmedNote : undefined,
-        sortOrder: nextSortOrder,
-      });
-    }
+    setIsSaving(true);
+    const saved = editing
+      ? await updateLineItem(editing.id, input)
+      : await addLineItem(input);
+    setIsSaving(false);
+    if (!saved) return; // rollback already happened; hook error renders below
 
     setCategory("HOUSING");
     setName("");
@@ -144,8 +139,17 @@ export function FixedCostForm({ editing, onDone }: FixedCostFormProps) {
       />
 
       <div className="flex gap-2">
-        <Button type="submit" variant="primary" className="flex-1">
-          {editing ? "Save changes" : "Add line item"}
+        <Button
+          type="submit"
+          variant="primary"
+          className="flex-1"
+          disabled={isSaving}
+        >
+          {isSaving
+            ? "Saving…"
+            : editing
+              ? "Save changes"
+              : "Add line item"}
         </Button>
         {editing && (
           <Button type="button" variant="ghost" onClick={onDone}>
@@ -153,6 +157,12 @@ export function FixedCostForm({ editing, onDone }: FixedCostFormProps) {
           </Button>
         )}
       </div>
+
+      {serverError && (
+        <p role="alert" className="text-sm text-red-600 font-sans">
+          {serverError}
+        </p>
+      )}
     </form>
   );
 }

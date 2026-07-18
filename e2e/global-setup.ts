@@ -104,7 +104,9 @@ export default async function globalSetup() {
       },
     });
 
-    // Conscious Spending Plan: 50 / 10 / 10 / 30
+    // Conscious Spending Plan: 50 / 10 / 10 / 30. Overridden so the
+    // derived-Fixed-Costs sync (#50) never rewrites the seeded 50% when
+    // other specs add or remove line items — the household "chose" it.
     await prisma.spendingPlan.upsert({
       where: { profileId: PROFILE_ID },
       update: {
@@ -112,6 +114,7 @@ export default async function globalSetup() {
         savingsPercent: 10,
         investmentsPercent: 10,
         guiltFreePercent: 30,
+        fixedCostsOverridden: true,
       },
       create: {
         profileId: PROFILE_ID,
@@ -119,6 +122,7 @@ export default async function globalSetup() {
         savingsPercent: 10,
         investmentsPercent: 10,
         guiltFreePercent: 30,
+        fixedCostsOverridden: true,
       },
     });
 

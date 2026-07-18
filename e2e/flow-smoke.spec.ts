@@ -108,4 +108,49 @@ test.describe("signed-in flow", () => {
     await expect(page.getByText("Regular Income")).toBeVisible();
     await expect(page.getByText("E2E Fast Nav Income")).toHaveCount(0);
   });
+
+  // #50: fixed-cost line items are server-authoritative — an add is an
+  // awaited per-intent action, so a full reload right after the round trip
+  // loses nothing and ids stay stable. Cleans up after itself.
+  test("fixed-cost line item survives a full reload; awaited remove sticks", async ({
+    page,
+  }) => {
+    await page.goto("/flow/fixed-costs");
+    await page.getByLabel("Line item name").fill("E2E Fast Nav Utility");
+    await page.getByLabel("Monthly amount").fill("77");
+
+    const addRoundTrip = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().includes("/flow/fixed-costs")
+    );
+    await page.getByRole("button", { name: "Add line item" }).click();
+    // Optimistic: visible before the server answers.
+    await expect(page.getByText("E2E Fast Nav Utility")).toBeVisible();
+    await addRoundTrip;
+
+    // Full page load straight after the write — the old debounced flush
+    // lost this row (#13); the awaited action does not.
+    await page.goto("/flow/fixed-costs");
+    await expect(page.getByText("E2E Fast Nav Utility")).toBeVisible({
+      timeout: 15_000,
+    });
+
+    const removeRoundTrip = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().includes("/flow/fixed-costs")
+    );
+    await page
+      .locator("div")
+      .filter({ hasText: "E2E Fast Nav Utility" })
+      .filter({ has: page.getByRole("button", { name: "Remove" }) })
+      .last()
+      .getByRole("button", { name: "Remove" })
+      .click();
+    await removeRoundTrip;
+    await page.reload();
+    await expect(page.getByText("What's actually locked in?")).toBeVisible();
+    await expect(page.getByText("E2E Fast Nav Utility")).toHaveCount(0);
+  });
 });

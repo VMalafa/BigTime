@@ -10,6 +10,11 @@ import type { $Enums } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 import { getActiveProfileId } from "@/lib/active-profile";
+import {
+  addFixedCostLineItem,
+  getSpendingPlanData,
+} from "@/app/actions/spending-plan";
+import type { SpendingPlanData } from "@/lib/store/flow-store";
 import { detectRecurringPatterns } from "@/lib/recurring/pattern-engine";
 import {
   buildDebtProposals,
@@ -151,64 +156,83 @@ export async function getFlowProposals(): Promise<FlowProposals> {
   };
 }
 
-export interface FixedCostConfirmation {
-  merchantPattern: string;
-  fixedCostCategory: string;
-}
-
 /**
- * Records fixed-cost Proposal confirmations: remembers the decision and
- * seeds a CategoryRule (source SEED) per merchant so future syncs
- * categorize deterministically. The line item itself is added client-side
- * through the flow store (single persistence path). Never overwrites an
- * existing rule — human Corrections and batch rules outrank seeds.
+ * Fixed-cost Proposal confirmation, fully server-side (#50): re-derives
+ * the Proposals from the feed (never trusting client-supplied facts),
+ * remembers each decision, seeds a CategoryRule (source SEED) so future
+ * syncs categorize deterministically, and creates the FixedCostLineItem
+ * rows through the same per-intent path everything else uses — stable ids,
+ * no store flush. Never overwrites an existing rule — human Corrections
+ * and batch rules outrank seeds. Returns the fresh plan for mirroring.
  */
 export async function confirmFixedCostProposals(
-  confirmations: FixedCostConfirmation[]
-): Promise<{ ok?: boolean; error?: string }> {
+  merchantPatterns: string[]
+): Promise<{ ok?: boolean; plan?: SpendingPlanData; error?: string }> {
   const user = await requireUser();
   if (!user) return { error: "Not signed in." };
+  if (merchantPatterns.length === 0) return { error: "Nothing to confirm." };
 
-  for (const confirmation of confirmations) {
-    const category = confirmation.fixedCostCategory as $Enums.FixedCostCategory;
+  const flowProposals = await getFlowProposals();
+  const byPattern = new Map(
+    [
+      ...flowProposals.fixedCosts.confirmAll,
+      ...flowProposals.fixedCosts.individual,
+    ].map((p) => [p.merchantPattern, p])
+  );
+
+  const profileId = await getActiveProfileId();
+  if (!profileId) return { error: "No profile found." };
+
+  for (const merchantPattern of merchantPatterns) {
+    const proposal = byPattern.get(merchantPattern);
+    if (!proposal) continue; // already decided or no longer proposed
+
     await prisma.proposalDecision.upsert({
       where: {
         userId_kind_key: {
           userId: user.id,
           kind: "FIXED_COST",
-          key: confirmation.merchantPattern,
+          key: merchantPattern,
         },
       },
       update: { decision: "CONFIRMED" },
       create: {
         userId: user.id,
         kind: "FIXED_COST",
-        key: confirmation.merchantPattern,
+        key: merchantPattern,
         decision: "CONFIRMED",
       },
     });
 
     const existing = await prisma.categoryRule.findUnique({
       where: {
-        userId_merchantPattern: {
-          userId: user.id,
-          merchantPattern: confirmation.merchantPattern,
-        },
+        userId_merchantPattern: { userId: user.id, merchantPattern },
       },
     });
     if (!existing && isCspBucket("FIXED_COSTS")) {
       await prisma.categoryRule.create({
         data: {
           userId: user.id,
-          merchantPattern: confirmation.merchantPattern,
+          merchantPattern,
           cspBucket: "FIXED_COSTS",
-          fixedCostCategory: category,
+          fixedCostCategory:
+            proposal.fixedCostCategory as $Enums.FixedCostCategory,
           source: "SEED",
         },
       });
     }
+
+    const created = await addFixedCostLineItem({
+      category: proposal.fixedCostCategory,
+      name: proposal.name,
+      monthlyAmount: proposal.monthlyAmountCents / 100,
+      note: "From your linked accounts",
+    });
+    if ("error" in created && created.error) return { error: created.error };
   }
-  return { ok: true };
+
+  const plan = await getSpendingPlanData();
+  return { ok: true, plan: plan ?? undefined };
 }
 
 /** Remembers an income confirmation; the IncomeSource itself is added
