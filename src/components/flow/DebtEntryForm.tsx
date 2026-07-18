@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
-import { useFlowStore, type DebtType } from "@/lib/store/flow-store";
-import { generateId, isPositiveNumber } from "@/lib/utils/validation";
+import { type DebtType } from "@/lib/store/flow-store";
+import { useDebts } from "@/lib/hooks/useDebts";
+import { isPositiveNumber } from "@/lib/utils/validation";
 
 const DEBT_TYPES: { value: DebtType; label: string }[] = [
   { value: "CREDIT_CARD", label: "Credit Card" },
@@ -24,7 +25,10 @@ interface DebtEntryFormProps {
 }
 
 export function DebtEntryForm({ onSubmit }: DebtEntryFormProps) {
-  const addDebt = useFlowStore((s) => s.addDebt);
+  // Server-authoritative (#51): awaited per-intent action with optimistic
+  // UI + rollback; ids are server-generated and stable.
+  const { addDebt, error: serverError } = useDebts();
+  const [isSaving, setIsSaving] = useState(false);
 
   const [name, setName] = useState("");
   const [balance, setBalance] = useState("");
@@ -54,12 +58,12 @@ export function DebtEntryForm({ onSubmit }: DebtEntryFormProps) {
     return Object.keys(newErrors).length === 0;
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!validate()) return;
 
-    addDebt({
-      id: generateId(),
+    setIsSaving(true);
+    const added = await addDebt({
       name: name.trim(),
       balance: Number(balance),
       apr: Number(apr),
@@ -67,6 +71,8 @@ export function DebtEntryForm({ onSubmit }: DebtEntryFormProps) {
       debtType,
       ...(isRevolving && creditLimit ? { creditLimit: Number(creditLimit) } : {}),
     });
+    setIsSaving(false);
+    if (!added) return; // rollback already happened; hook error renders below
 
     setName("");
     setBalance("");
@@ -157,9 +163,20 @@ export function DebtEntryForm({ onSubmit }: DebtEntryFormProps) {
         />
       )}
 
-      <Button type="submit" variant="primary" className="w-full">
-        Add Debt
+      <Button
+        type="submit"
+        variant="primary"
+        className="w-full"
+        disabled={isSaving}
+      >
+        {isSaving ? "Adding…" : "Add Debt"}
       </Button>
+
+      {serverError && (
+        <p role="alert" className="text-sm text-red-600 font-sans">
+          {serverError}
+        </p>
+      )}
     </form>
   );
 }
