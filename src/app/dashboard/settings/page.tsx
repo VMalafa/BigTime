@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { CalendarFeedsPanel } from "@/components/settings/CalendarFeedsPanel";
 
 export default function SettingsPage() {
   return (
@@ -34,6 +35,11 @@ export default function SettingsPage() {
             Manage Connections
           </Button>
         </Link>
+      </Card>
+
+      <Card>
+        <h2 className="font-serif text-xl mb-4">Calendar Feeds</h2>
+        <CalendarFeedsPanel />
       </Card>
 
       {/* Automation lost its nav slot (#60) and lives here until its One
