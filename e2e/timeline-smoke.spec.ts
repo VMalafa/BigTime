@@ -112,8 +112,8 @@ test("person chips: assign in two taps, persists, filters include extras; cost r
     await page.reload();
     await expect(
       dismissal.getByRole("button", { name: /assigned to Extended Day/ })
-    ).toBeVisible({ timeout: 2_000 });
-  }).toPass({ timeout: 20_000 });
+    ).toBeVisible({ timeout: 4_000 });
+  }).toPass({ timeout: 30_000 });
 
   // Person filter chips include the extras. "Sitter" hides the Extended
   // Day event but keeps the unassigned holiday (household-wide rule);

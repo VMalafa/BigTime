@@ -13,6 +13,7 @@ import { motion } from "framer-motion";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { getHomeTruth, type HomeTruth } from "@/app/actions/home";
 import { SafeToSpendCard } from "@/components/dashboard/SafeToSpendCard";
+import { TodayStrip } from "@/components/dashboard/TodayStrip";
 import type { WeatherState } from "@/lib/heartbeat/weather";
 
 const WEATHER_STYLE: Record<WeatherState, { dot: string; text: string }> = {
@@ -80,8 +81,19 @@ export default function DashboardPage() {
         </motion.section>
       )}
 
-      {/* The heartbeat: Safe-to-Spend for the current Pay Period. */}
-      <SafeToSpendCard />
+      {/* Today's and tomorrow's actionable rows (#79), between the hero
+          and the heartbeat. */}
+      {truth && (
+        <TodayStrip
+          rows={truth.strip}
+          todayIso={truth.todayIso}
+          tomorrowIso={truth.tomorrowIso}
+        />
+      )}
+
+      {/* The heartbeat: Safe-to-Spend for the current Pay Period — one
+          read for the whole glance (getHomeTruth), no second fetch. */}
+      <SafeToSpendCard data={truth?.heartbeat ?? null} />
 
       <div className="flex flex-wrap items-center justify-center gap-3 mt-2 mb-6">
         {/* Honesty chip: absent only when the count is truly zero. */}
