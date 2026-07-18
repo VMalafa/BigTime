@@ -5,17 +5,20 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { useFlowStore, type IncomeEntry } from "@/lib/store/flow-store";
-import { generateId, isPositiveNumber } from "@/lib/utils/validation";
+import { type IncomeEntry } from "@/lib/store/flow-store";
+import { useIncomeData } from "@/lib/hooks/useIncomeData";
+import { isPositiveNumber } from "@/lib/utils/validation";
 import { formatCurrency } from "@/lib/utils/format";
 
 export function IncomeEntryForm() {
-  const { incomeSources, addIncome, removeIncome, updateIncome } =
-    useFlowStore();
+  // Server-authoritative (#49): awaited per-intent actions with optimistic
+  // UI + rollback; the list is server truth, shared with the dashboard.
+  const { incomeSources, addIncome, removeIncome, error } = useIncomeData();
 
   const [name, setName] = useState("");
   const [monthlyAmount, setMonthlyAmount] = useState("");
   const [isAfterTax, setIsAfterTax] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   function validate(): boolean {
@@ -27,16 +30,18 @@ export function IncomeEntryForm() {
     return Object.keys(newErrors).length === 0;
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!validate()) return;
 
-    addIncome({
-      id: generateId(),
+    setIsSaving(true);
+    const added = await addIncome({
       name: name.trim(),
       monthlyAmount: Number(monthlyAmount),
       isAfterTax,
     });
+    setIsSaving(false);
+    if (!added) return; // rollback already happened; hook error renders below
 
     setName("");
     setMonthlyAmount("");
@@ -87,9 +92,20 @@ export function IncomeEntryForm() {
           </label>
         </div>
 
-        <Button type="submit" variant="primary" className="w-full">
-          Add Income
+        <Button
+          type="submit"
+          variant="primary"
+          className="w-full"
+          disabled={isSaving}
+        >
+          {isSaving ? "Adding…" : "Add Income"}
         </Button>
+
+        {error && (
+          <p role="alert" className="text-sm text-red-600 font-sans">
+            {error}
+          </p>
+        )}
       </form>
 
       {incomeSources.length > 0 && (

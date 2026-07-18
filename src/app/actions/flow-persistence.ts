@@ -8,8 +8,6 @@ import type {
   DebtType,
   DialCategory,
   DebtEntry,
-  IncomeEntry,
-  BonusEntry,
   BonusFrequency,
   SpendingPlanData,
   FixedCostLineItem,
@@ -132,44 +130,10 @@ export async function persistDebts(debts: DebtEntry[]) {
   }
 }
 
-export async function persistIncomeSources(incomeSources: IncomeEntry[]) {
-  const profileId = await getActiveProfileId();
-  if (!profileId) return;
-
-  await prisma.incomeSource.deleteMany({ where: { profileId } });
-
-  if (incomeSources.length > 0) {
-    await prisma.incomeSource.createMany({
-      data: incomeSources.map((i) => ({
-        profileId,
-        name: i.name,
-        monthlyAmount: i.monthlyAmount,
-        isAfterTax: i.isAfterTax,
-      })),
-    });
-  }
-}
-
-export async function persistBonusItems(bonusItems: BonusEntry[]) {
-  const profileId = await getActiveProfileId();
-  if (!profileId) return;
-
-  await prisma.bonusItem.deleteMany({ where: { profileId } });
-
-  if (bonusItems.length > 0) {
-    await prisma.bonusItem.createMany({
-      data: bonusItems.map((b) => ({
-        profileId,
-        name: b.name,
-        grossAmount: b.grossAmount,
-        estimatedTaxRate: b.estimatedTaxRate,
-        frequency: b.frequency as BonusFrequency,
-        expectedDate: b.expectedDate ? new Date(b.expectedDate) : null,
-        notes: b.notes ?? null,
-      })),
-    });
-  }
-}
+// persistIncomeSources / persistBonusItems are gone (#49): income and bonus
+// mutations are awaited per-intent actions in src/app/actions/income.ts —
+// no whole-array replace, stable row ids. loadProfileFlowData still returns
+// both for the store's read mirror.
 
 export async function persistSpendingPlan(plan: SpendingPlanData) {
   const profileId = await getActiveProfileId();

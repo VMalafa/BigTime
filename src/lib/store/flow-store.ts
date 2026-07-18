@@ -115,6 +115,12 @@ interface FlowState {
   setFixedCostsOverridden: (flag: boolean) => void;
   setMoneyDial: (category: DialCategory, level: number) => void;
   setComplete: (complete: boolean) => void;
+  // #49: income/bonus are server-authoritative; this setter refreshes the
+  // in-store read mirror from server truth (see useIncomeData).
+  setIncomeData: (
+    incomeSources: IncomeEntry[],
+    bonusItems: BonusEntry[]
+  ) => void;
   getTotalMonthlyIncome: () => number;
   getTotalAnnualBonusNet: () => number;
   getMonthlyBonusEquivalent: () => number;
@@ -333,6 +339,8 @@ export const useFlowStore = create<FlowState>()(
           moneyDials: { ...state.moneyDials, [category]: level },
         })),
       setComplete: (complete) => set({ isComplete: complete }),
+      setIncomeData: (incomeSources, bonusItems) =>
+        set({ incomeSources, bonusItems }),
       getTotalMonthlyIncome: () => {
         const state = get();
         return state.incomeSources.reduce(
