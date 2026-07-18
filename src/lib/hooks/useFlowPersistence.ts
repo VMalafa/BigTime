@@ -1,21 +1,19 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { useFlowStore } from "@/lib/store/flow-store";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { loadProfileFlowData } from "@/app/actions/flow-persistence";
-import {
-  persistScripts,
-  persistMoneyType,
-  persistMoneyDials,
-} from "@/app/actions/flow-persistence";
 
+// With every domain entity converted to awaited per-intent actions
+// (#49-#52), there is nothing left to flush — the debounced
+// subscribe-and-flush machinery is gone. What remains is the
+// hydrate-on-auth read that fills the store's read mirror for the
+// not-yet-converted consumers; #53 retires that too and shrinks the store
+// to UI state.
 export function useFlowPersistence() {
   const { isAuthenticated, loading } = useAuth();
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const prevStateRef = useRef<string>("");
 
-  // Hydrate from DB when authenticated
   useEffect(() => {
     if (loading || !isAuthenticated) return;
 
@@ -27,47 +25,5 @@ export function useFlowPersistence() {
         store.hydrateFromDb(data);
       }
     });
-  }, [isAuthenticated, loading]);
-
-  // Subscribe to store changes and persist to DB (debounced)
-  useEffect(() => {
-    if (loading || !isAuthenticated) return;
-
-    const unsubscribe = useFlowStore.subscribe((state) => {
-      if (!state._isAuthenticated || !state._isHydrated) return;
-
-      // Serialize relevant state to detect actual changes. Income/bonus
-      // (#49), the spending plan with its line items (#50), and debts
-      // (#51) are absent by design: they are server-authoritative with
-      // awaited per-intent actions — a whole-array flush of them would
-      // reintroduce the clobbering the conversions killed.
-      const stateKey = JSON.stringify({
-        scripts: state.scripts,
-        moneyType: state.moneyType,
-        moneyDials: state.moneyDials,
-      });
-
-      if (stateKey === prevStateRef.current) return;
-      prevStateRef.current = stateKey;
-
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-
-      debounceRef.current = setTimeout(async () => {
-        try {
-          await Promise.all([
-            persistScripts(state.scripts),
-            state.moneyType ? persistMoneyType(state.moneyType) : null,
-            persistMoneyDials(state.moneyDials),
-          ]);
-        } catch (err) {
-          console.error("Failed to persist flow data to DB:", err);
-        }
-      }, 500);
-    });
-
-    return () => {
-      unsubscribe();
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
   }, [isAuthenticated, loading]);
 }
