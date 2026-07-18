@@ -13,6 +13,11 @@ import { generateId } from "@/lib/utils/validation";
 import { formatCurrency } from "@/lib/utils/format";
 import { Button } from "@/components/ui/Button";
 
+// Server-authoritative (#50): confirmation creates the FixedCostLineItem
+// rows server-side from feed-derived facts; the optimistic store add below
+// is only the instant mirror, replaced by the returned plan (stable ids)
+// or rolled back on failure.
+
 // Fixed-cost Proposals (CONTEXT.md): the feed drafts, the human ratifies.
 // Clear-cut Proposals bundle under one confirm-all (list visible);
 // ambiguous or plan-moving ones ask individually. Nothing enters the plan
@@ -49,6 +54,7 @@ export function FixedCostProposalsPanel() {
   const [confirmAll, setConfirmAll] = useState<FixedCostProposal[]>([]);
   const [individual, setIndividual] = useState<FixedCostProposal[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
   useEffect(() => {
@@ -67,7 +73,12 @@ export function FixedCostProposalsPanel() {
     return null;
   }
 
-  function addToPlan(proposals: FixedCostProposal[]) {
+  function addToPlan(
+    proposals: FixedCostProposal[],
+    restoreCards: () => void
+  ) {
+    setError(null);
+    const previousPlan = useFlowStore.getState().spendingPlan;
     proposals.forEach((proposal, index) => {
       addFixedCostLineItem({
         id: generateId(),
@@ -79,26 +90,33 @@ export function FixedCostProposalsPanel() {
       });
     });
     startTransition(async () => {
-      await confirmFixedCostProposals(
-        proposals.map((p) => ({
-          merchantPattern: p.merchantPattern,
-          fixedCostCategory: p.fixedCostCategory,
-        }))
+      const result = await confirmFixedCostProposals(
+        proposals.map((p) => p.merchantPattern)
       );
+      if (result.error) {
+        useFlowStore.setState({ spendingPlan: previousPlan });
+        restoreCards();
+        setError(result.error);
+        return;
+      }
+      // Swap the optimistic rows for the server plan — stable ids.
+      if (result.plan) useFlowStore.setState({ spendingPlan: result.plan });
     });
   }
 
   function handleConfirmAll() {
     const batch = confirmAll;
     setConfirmAll([]);
-    addToPlan(batch);
+    addToPlan(batch, () => setConfirmAll(batch));
   }
 
   function handleConfirmOne(proposal: FixedCostProposal) {
     setIndividual((prev) =>
       prev.filter((p) => p.merchantPattern !== proposal.merchantPattern)
     );
-    addToPlan([proposal]);
+    addToPlan([proposal], () =>
+      setIndividual((prev) => [...prev, proposal])
+    );
   }
 
   function handleDismiss(proposal: FixedCostProposal, tier: "all" | "one") {
@@ -127,6 +145,12 @@ export function FixedCostProposalsPanel() {
           plan until you confirm it.
         </p>
       </div>
+
+      {error && (
+        <p role="alert" className="text-sm text-red-600 font-sans">
+          {error}
+        </p>
+      )}
 
       {confirmAll.length > 0 && (
         <div>

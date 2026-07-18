@@ -9,6 +9,7 @@ import { CSPSliders } from "@/components/flow/CSPSliders";
 import { RealityCheckCard } from "@/components/flow/RealityCheckCard";
 import { Button } from "@/components/ui/Button";
 import { useFlowStore, type SpendingPlanData } from "@/lib/store/flow-store";
+import { useSpendingPlan } from "@/lib/hooks/useSpendingPlan";
 import { CSP_RANGES } from "@/lib/constants/csp-ranges";
 import { formatCurrency, formatPercent } from "@/lib/utils/format";
 
@@ -25,13 +26,16 @@ export default function SpendingPlanPage() {
   const router = useRouter();
   const {
     spendingPlan,
-    setSpendingPlan,
     setCurrentStep,
     setFixedCostsOverridden,
     getTotalMonthlyIncome,
     getFixedCostsTotalMonthly,
     getSuggestedFixedCostsPercent,
   } = useFlowStore();
+  // Server-authoritative (#50): Continue awaits one save-the-plan intent —
+  // no debounced flush left to lose on a fast navigation.
+  const { savePlan, error: saveError } = useSpendingPlan();
+  const [isSaving, setIsSaving] = useState(false);
 
   const totalIncome = getTotalMonthlyIncome();
   const totalFixedCosts = getFixedCostsTotalMonthly();
@@ -142,8 +146,17 @@ export default function SpendingPlanPage() {
     });
   }
 
-  function handleNext() {
-    setSpendingPlan(values);
+  async function handleNext() {
+    setIsSaving(true);
+    const saved = await savePlan({
+      fixedCostsPercent: values.fixedCostsPercent,
+      savingsPercent: values.savingsPercent,
+      investmentsPercent: values.investmentsPercent,
+      guiltFreePercent: values.guiltFreePercent,
+      fixedCostsOverridden: values.fixedCostsOverridden,
+    });
+    setIsSaving(false);
+    if (!saved) return;
     setCurrentStep(5);
     router.push("/flow/money-dials");
   }
@@ -223,11 +236,17 @@ export default function SpendingPlanPage() {
           </div>
         )}
 
+        {saveError && (
+          <p role="alert" className="text-sm text-red-600 font-sans">
+            {saveError}
+          </p>
+        )}
+
         <FlowNavigation
           onBack={handleBack}
           onNext={handleNext}
-          nextLabel="Continue"
-          nextDisabled={total !== 100}
+          nextLabel={isSaving ? "Saving…" : "Continue"}
+          nextDisabled={total !== 100 || isSaving}
           showBack
         />
       </div>

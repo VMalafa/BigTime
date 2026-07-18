@@ -4,7 +4,8 @@ import { useMemo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { useFlowStore, type FixedCostLineItem } from "@/lib/store/flow-store";
+import { type FixedCostLineItem } from "@/lib/store/flow-store";
+import { useSpendingPlan } from "@/lib/hooks/useSpendingPlan";
 import {
   FIXED_COST_CATEGORIES,
   type FixedCostCategory,
@@ -24,8 +25,9 @@ export function FixedCostLineItemList({
   items,
   onEdit,
 }: FixedCostLineItemListProps) {
-  const { removeFixedCostLineItem, reorderFixedCostLineItems } =
-    useFlowStore();
+  // Server-authoritative (#50): remove/reorder are awaited per-intent
+  // actions; optimistic update + rollback live in the hook.
+  const { removeLineItem, reorderLineItems, error } = useSpendingPlan();
 
   const sorted = useMemo(
     () => [...items].sort((a, b) => a.sortOrder - b.sortOrder),
@@ -46,7 +48,7 @@ export function FixedCostLineItemList({
     const swap = index + direction;
     if (swap < 0 || swap >= next.length) return;
     [next[index], next[swap]] = [next[swap], next[index]];
-    reorderFixedCostLineItems(next.map((i) => i.id));
+    void reorderLineItems(next.map((i) => i.id));
   }
 
   if (items.length === 0) {
@@ -61,6 +63,11 @@ export function FixedCostLineItemList({
 
   return (
     <div className="space-y-5">
+      {error && (
+        <p role="alert" className="text-sm text-red-600 font-sans">
+          {error}
+        </p>
+      )}
       {FIXED_COST_CATEGORIES.map((c) => {
         const group = byCategory.get(c.key) ?? [];
         if (group.length === 0) return null;
@@ -143,7 +150,7 @@ export function FixedCostLineItemList({
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => removeFixedCostLineItem(item.id)}
+                              onClick={() => void removeLineItem(item.id)}
                             >
                               Remove
                             </Button>
