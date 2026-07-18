@@ -46,7 +46,9 @@ test("nav renders the four tabs; Plan reaches its sub-views; unlinked routes res
 
   // --- Plan section reaches income, debts, fixed costs, CSP, dials.
   await page.goto("/dashboard/plan");
-  await expect(page.getByRole("heading", { name: "Plan" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Plan", exact: true })
+  ).toBeVisible();
   for (const area of [
     "Income",
     "Debts",

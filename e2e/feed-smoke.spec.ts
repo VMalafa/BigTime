@@ -75,21 +75,18 @@ test("feed lifecycle: mint in Settings, serve CONFIRMED life events, rotate, rev
   expect(rotatedToken).toBeTruthy();
   expect(rotatedToken).not.toBe(schoolToken);
 
-  expect(
-    (await request.get(`/api/calendar/feed/${schoolToken}.ics`)).status()
-  ).toBe(404);
-  expect(
-    (await request.get(`/api/calendar/feed/${rotatedToken}.ics`)).status()
-  ).toBe(200);
+  const feedStatus = (token: string) => async () =>
+    (await request.get(`/api/calendar/feed/${token}.ics`)).status();
 
-  // --- Revoke both; each URL 404s.
+  await expect.poll(feedStatus(schoolToken!)).toBe(404);
+  await expect.poll(feedStatus(rotatedToken!)).toBe(200);
+
+  // --- Revoke both; each URL 404s. The row disappears optimistically
+  // before the server delete lands, so poll the route rather than trusting
+  // the DOM as confirmation.
   await page.getByRole("button", { name: "Revoke" }).first().click();
   await page.getByRole("button", { name: "Revoke" }).first().click();
   await expect(page.getByText(/webcal:\/\//)).toHaveCount(0);
-  expect(
-    (await request.get(`/api/calendar/feed/${householdToken}.ics`)).status()
-  ).toBe(404);
-  expect(
-    (await request.get(`/api/calendar/feed/${rotatedToken}.ics`)).status()
-  ).toBe(404);
+  await expect.poll(feedStatus(householdToken!)).toBe(404);
+  await expect.poll(feedStatus(rotatedToken!)).toBe(404);
 });
