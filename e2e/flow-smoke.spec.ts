@@ -1,61 +1,62 @@
 import { expect, test } from "@playwright/test";
+import {
+  E2E_SPENDING_EMAIL,
+  e2eSpendingPassword,
+  loadDotEnv,
+} from "./fixture";
 
-// The onboarding fork renders after the money-type step; "I'll type it in"
-// is the manual path, unchanged: it lands on /flow/debts exactly as the
-// pre-fork Continue did.
-test("onboarding fork after money type; manual path continues to debts", async ({
-  page,
-}) => {
-  await page.goto("/flow/money-type");
-  await page.getByText("The Optimizer").click();
-  await page.getByRole("button", { name: "Continue", exact: true }).click();
+loadDotEnv();
 
-  await expect(page).toHaveURL(/\/flow\/link-accounts/);
-  await expect(
-    page.getByText("Link your accounts and we'll fill in the rest")
-  ).toBeVisible();
-  await expect(page.getByRole("button", { name: "Link accounts" })).toBeVisible();
-
-  await page.getByRole("button", { name: "Continue typing it in" }).click();
-  await expect(page).toHaveURL(/\/flow\/debts/);
-  await expect(page.getByText("Let's see the full picture")).toBeVisible();
+// Signup-first (#48): flow pages never render anonymously. Anonymous
+// visitors are new households, so the proxy sends them to signup.
+test("anonymous flow access redirects to signup", async ({ page }) => {
+  for (const path of [
+    "/flow",
+    "/flow/money-type",
+    "/flow/income",
+    "/flow/spending-plan",
+  ]) {
+    await page.goto(path);
+    await expect(page).toHaveURL(/\/auth\/signup/);
+  }
 });
 
-// Smoke test for the anonymous Conscious Spending Plan flow:
-// income -> fixed costs -> spending plan. State lives in localStorage only,
-// so no auth or database is required.
-test("anonymous flow: income to fixed costs to spending plan", async ({
-  page,
-}) => {
-  // --- Income ---
-  await page.goto("/flow/income");
-  await page.getByLabel("Income Source").fill("Salary");
-  await page.getByLabel("Monthly Amount").fill("6000");
-  await page.getByRole("button", { name: "Add Income" }).click();
+// The signed-in smoke needs the seeded fixture household (see
+// global-setup.ts); without it this block skips loudly instead of failing.
+test.describe("signed-in flow", () => {
+  test.skip(
+    process.env.E2E_SEED_FIXTURE !== "1",
+    "Signed-in flow smoke needs the seeded fixture household: run with E2E_SEED_FIXTURE=1 (writes an isolated e2e-spending-* household to the shared DB)."
+  );
 
-  await expect(page.getByText("Effective monthly")).toBeVisible();
-  await expect(page.getByText("$6,000").first()).toBeVisible();
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/auth/login");
+    await page.getByLabel("Email").fill(E2E_SPENDING_EMAIL);
+    await page.getByLabel("Password").fill(e2eSpendingPassword());
+    await page.getByRole("button", { name: "Sign In", exact: true }).click();
+    await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 });
+  });
 
-  await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page).toHaveURL(/\/flow\/fixed-costs/);
+  // The onboarding fork renders after the money-type step; "I'll type it in"
+  // is the manual path, unchanged: it lands on /flow/debts exactly as the
+  // pre-fork Continue did.
+  test("onboarding fork after money type; manual path continues to debts", async ({
+    page,
+  }) => {
+    await page.goto("/flow/money-type");
+    await page.getByText("The Optimizer").click();
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
 
-  // --- Fixed costs ---
-  await page.getByLabel("Line item name").fill("Rent");
-  await page.getByLabel("Monthly amount").fill("1800");
-  await page.getByRole("button", { name: "Add line item" }).click();
+    await expect(page).toHaveURL(/\/flow\/link-accounts/);
+    await expect(
+      page.getByText("Link your accounts and we'll fill in the rest")
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Link accounts" })
+    ).toBeVisible();
 
-  // Reality Check derives 1800 / 6000 = 30%
-  await expect(page.getByText("Derived Fixed Costs %")).toBeVisible();
-  await expect(page.getByText("30%").first()).toBeVisible();
-
-  await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page).toHaveURL(/\/flow\/spending-plan/);
-
-  // --- Spending plan ---
-  await expect(
-    page.getByText("Your Conscious Spending Plan")
-  ).toBeVisible();
-  // The Fixed Costs slider is pre-seeded from the derived 30%
-  await expect(page.getByText("Derived Fixed Costs %")).toBeVisible();
-  await expect(page.getByText("30%").first()).toBeVisible();
+    await page.getByRole("button", { name: "Continue typing it in" }).click();
+    await expect(page).toHaveURL(/\/flow\/debts/);
+    await expect(page.getByText("Let's see the full picture")).toBeVisible();
+  });
 });

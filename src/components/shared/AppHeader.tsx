@@ -6,6 +6,11 @@ import { ProfileSwitcher } from "@/components/shared/ProfileSwitcher";
 import { signOut } from "@/app/actions/auth";
 import { useEffect, useState } from "react";
 import { getActiveProfile } from "@/app/actions/profile";
+import { useFlowStore } from "@/lib/store/flow-store";
+
+// Marks that the anonymous-era flow draft was cleared after the draft
+// layer's retirement (#48) — a one-time cleanup per browser.
+const DRAFT_CLEARED_KEY = "rich-life-flow-draft-cleared";
 
 export function AppHeader() {
   const { isAuthenticated, loading } = useAuth();
@@ -16,6 +21,16 @@ export function AppHeader() {
       getActiveProfile().then((profile) => {
         if (profile) setActiveProfileId(profile.id);
       });
+    }
+  }, [isAuthenticated]);
+
+  // Signup-first (#48): an anonymous-era draft may still sit in
+  // localStorage. The DB rows stand as truth, so the draft is cleared once
+  // on the first authed visit and never migrated or hydrated.
+  useEffect(() => {
+    if (isAuthenticated && !localStorage.getItem(DRAFT_CLEARED_KEY)) {
+      useFlowStore.persist.clearStorage();
+      localStorage.setItem(DRAFT_CLEARED_KEY, "1");
     }
   }, [isAuthenticated]);
 
@@ -41,7 +56,16 @@ export function AppHeader() {
               >
                 Dashboard
               </Link>
-              <form action={signOut}>
+              <form
+                action={async () => {
+                  // Signout must leave no household data readable on this
+                  // machine: reset the in-memory store first (a later set
+                  // would re-persist it), then drop the persisted draft.
+                  useFlowStore.getState().reset();
+                  useFlowStore.persist.clearStorage();
+                  await signOut();
+                }}
+              >
                 <button
                   type="submit"
                   className="text-sm text-text-secondary hover:text-text-primary transition-colors"
