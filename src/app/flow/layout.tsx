@@ -3,14 +3,12 @@
 import { type ReactNode } from "react";
 import { useFlowStore } from "@/lib/store/flow-store";
 import { useFlowPersistence } from "@/lib/hooks/useFlowPersistence";
-import { useMigrateLocalData } from "@/lib/hooks/useMigrateLocalData";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { FLOW_STEPS } from "@/types/flow";
 
 export default function FlowLayout({ children }: { children: ReactNode }) {
   const currentStep = useFlowStore((s) => s.currentStep);
   useFlowPersistence();
-  useMigrateLocalData();
 
   return (
     <div className="min-h-screen bg-bg-primary">

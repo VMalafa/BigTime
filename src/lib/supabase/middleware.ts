@@ -44,5 +44,14 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Signup-first (ratified in #29): the flow never renders anonymously.
+  // Anonymous visitors are new households, so they land on signup — which
+  // already returns to /flow after the account exists.
+  if (!user && request.nextUrl.pathname.startsWith("/flow")) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/auth/signup";
+    return NextResponse.redirect(url);
+  }
+
   return supabaseResponse;
 }
