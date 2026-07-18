@@ -9,9 +9,10 @@
 // create CONFIRMED directly; DISMISSED rows are kept so a re-import never
 // re-raises a rejected Event.
 //
-// No revalidatePath yet: the timeline surface lands with #56, which owns
-// revalidating its own route from these intents.
+// Ratification intents revalidate the ingestion/review surface (#55). The
+// timeline surface (#56) owns revalidating its own route when it lands.
 
+import { revalidatePath } from "next/cache";
 import type { Event } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
@@ -199,6 +200,7 @@ export async function dismissEvent(
     data: { status: "DISMISSED" },
   });
   if (updated.count === 0) return { error: "Event not found." };
+  revalidatePath("/dashboard/calendar");
   return { ok: true };
 }
 
@@ -222,6 +224,7 @@ export async function confirmEvents(
     },
     data: { status: "CONFIRMED" },
   });
+  revalidatePath("/dashboard/calendar");
   return { ok: true, confirmed: updated.count };
 }
 

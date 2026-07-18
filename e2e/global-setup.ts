@@ -79,6 +79,9 @@ export default async function globalSetup() {
     });
     // Confirmed income Proposals from earlier runs — reseeded below.
     await prisma.incomeSource.deleteMany({ where: { profileId: PROFILE_ID } });
+    // Calendar Sources from earlier ingestion runs (#55) — deleting the
+    // source cascades to its Events, so every run reviews a fresh import.
+    await prisma.calendarSource.deleteMany({ where: { userId: authUserId } });
 
     await prisma.user.upsert({
       where: { id: authUserId },
