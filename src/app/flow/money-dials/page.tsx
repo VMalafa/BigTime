@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useFlowStore } from "@/lib/store/flow-store";
+import { useReflection, reflectionCache } from "@/lib/hooks/useReflection";
 import { saveMoneyDial } from "@/app/actions/reflection";
 import { StepWrapper } from "@/components/flow/StepWrapper";
 import { FlowNavigation } from "@/components/flow/FlowNavigation";
@@ -15,8 +16,7 @@ const DIAL_SAVE_DEBOUNCE_MS = 400;
 
 export default function MoneyDialsPage() {
   const router = useRouter();
-  const moneyDials = useFlowStore((s) => s.moneyDials);
-  const setMoneyDial = useFlowStore((s) => s.setMoneyDial);
+  const { moneyDials, setMoneyDialLocal: setMoneyDial } = useReflection();
   const setCurrentStep = useFlowStore((s) => s.setCurrentStep);
   const setComplete = useFlowStore((s) => s.setComplete);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -42,7 +42,7 @@ export default function MoneyDialsPage() {
   // each dial's awaited per-intent save fires when the hand settles, with
   // rollback to the last saved value on failure.
   const handleDialChange = (category: DialCategory, level: number) => {
-    const previous = useFlowStore.getState().moneyDials[category];
+    const previous = reflectionCache.get().moneyDials[category];
     setMoneyDial(category, level);
 
     const timers = timersRef.current;
@@ -52,10 +52,10 @@ export default function MoneyDialsPage() {
       category,
       setTimeout(async () => {
         timers.delete(category);
-        const latest = useFlowStore.getState().moneyDials[category];
+        const latest = reflectionCache.get().moneyDials[category];
         const result = await saveMoneyDial(category, latest);
         if (result.error) {
-          useFlowStore.getState().setMoneyDial(category, previous);
+          setMoneyDial(category, previous);
           setSaveError(result.error);
         } else {
           setSaveError(null);

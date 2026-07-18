@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { usePartnerStore } from "@/lib/store/partner-store";
-import { useFlowStore } from "@/lib/store/flow-store";
+import { useDebts } from "@/lib/hooks/useDebts";
 import { formatCurrency } from "@/lib/utils/format";
 import { formatPercent } from "@/lib/utils/format";
 
@@ -17,7 +17,7 @@ export default function SummaryPage() {
   const sharedDebts = usePartnerStore((s) => s.sharedDebts);
   const partnerAVision = usePartnerStore((s) => s.partnerAVision);
   const partnerBVision = usePartnerStore((s) => s.partnerBVision);
-  const debts = useFlowStore((s) => s.debts);
+  const { debts } = useDebts();
 
   const sharedDebtEntries = debts.filter((d) => sharedDebts.includes(d.id));
   const sharedDebtTotal = sharedDebtEntries.reduce(

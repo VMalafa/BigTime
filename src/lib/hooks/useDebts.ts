@@ -1,14 +1,15 @@
 "use client";
 
-// Server-authoritative debts (#51): reads hydrate from getDebtsData (one
-// source for the flow debts page AND the dashboard debts page); every
-// mutation is an awaited per-intent action with optimistic UI + rollback.
-// The zustand copy remains a read mirror for not-yet-converted consumers
-// (summary, automation suggestions) and is never flushed back.
+// Server-authoritative debts (#51; cache home per #53): reads hydrate from
+// getDebtsData into a shared in-memory cache (one source for the flow debts
+// page AND the dashboard debts page); every mutation is an awaited
+// per-intent action with optimistic UI + rollback. No zustand, no
+// localStorage.
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/hooks/useAuth";
-import { useFlowStore, type DebtEntry } from "@/lib/store/flow-store";
+import type { DebtEntry } from "@/lib/store/flow-store";
+import { createEntityCache } from "@/lib/hooks/entity-cache";
 import {
   addDebt as addDebtAction,
   getDebtsData,
@@ -18,22 +19,31 @@ import {
 } from "@/app/actions/debts";
 import { generateId } from "@/lib/utils/validation";
 
+interface DebtsState {
+  debts: DebtEntry[];
+  mappedIds: string[];
+}
+
+export const debtsCache = createEntityCache<DebtsState>({
+  debts: [],
+  mappedIds: [],
+});
+
 export function useDebts() {
   const { isAuthenticated, loading } = useAuth();
-  const debts = useFlowStore((s) => s.debts);
-  const [mappedIds, setMappedIds] = useState<Set<string>>(new Set());
+  const { debts, mappedIds } = debtsCache.use();
   const [error, setError] = useState<string | null>(null);
 
   function refresh(): Promise<void> {
     return getDebtsData().then((data) => {
       if (!data) return;
-      useFlowStore.setState({
+      debtsCache.set({
         debts: data.map(({ mapped, ...debt }) => {
           void mapped;
           return debt;
         }),
+        mappedIds: data.filter((d) => d.mapped).map((d) => d.id),
       });
-      setMappedIds(new Set(data.filter((d) => d.mapped).map((d) => d.id)));
     });
   }
 
@@ -44,18 +54,22 @@ export function useDebts() {
 
   async function addDebt(input: DebtInput): Promise<boolean> {
     setError(null);
-    const previous = useFlowStore.getState().debts;
+    const previous = debtsCache.get();
     const tempId = generateId();
-    useFlowStore.getState().addDebt({ id: tempId, ...input });
+    debtsCache.set((s) => ({
+      ...s,
+      debts: [...s.debts, { id: tempId, ...input }],
+    }));
 
     const result = await addDebtAction(input);
     if ("error" in result) {
-      useFlowStore.setState({ debts: previous });
+      debtsCache.set(previous);
       setError(result.error);
       return false;
     }
     const created = result.debt;
-    useFlowStore.setState((s) => ({
+    debtsCache.set((s) => ({
+      ...s,
       debts: s.debts.map((d) => (d.id === tempId ? created : d)),
     }));
     return true;
@@ -66,17 +80,21 @@ export function useDebts() {
     patch: Partial<DebtInput>
   ): Promise<boolean> {
     setError(null);
-    const previous = useFlowStore.getState().debts;
-    useFlowStore.getState().updateDebt(id, patch as Partial<DebtEntry>);
+    const previous = debtsCache.get();
+    debtsCache.set((s) => ({
+      ...s,
+      debts: s.debts.map((d) => (d.id === id ? { ...d, ...patch } : d)),
+    }));
 
     const result = await updateDebtAction(id, patch);
     if ("error" in result) {
-      useFlowStore.setState({ debts: previous });
+      debtsCache.set(previous);
       setError(result.error);
       return false;
     }
     const updated = result.debt;
-    useFlowStore.setState((s) => ({
+    debtsCache.set((s) => ({
+      ...s,
       debts: s.debts.map((d) => (d.id === id ? updated : d)),
     }));
     return true;
@@ -84,14 +102,15 @@ export function useDebts() {
 
   async function removeDebt(id: string): Promise<boolean> {
     setError(null);
-    const previous = useFlowStore.getState().debts;
-    useFlowStore.setState((s) => ({
+    const previous = debtsCache.get();
+    debtsCache.set((s) => ({
+      ...s,
       debts: s.debts.filter((d) => d.id !== id),
     }));
 
     const result = await removeDebtAction(id);
     if (result.error) {
-      useFlowStore.setState({ debts: previous });
+      debtsCache.set(previous);
       setError(result.error);
       return false;
     }
@@ -100,7 +119,7 @@ export function useDebts() {
 
   return {
     debts,
-    mappedIds,
+    mappedIds: new Set(mappedIds),
     error,
     addDebt,
     updateDebt,

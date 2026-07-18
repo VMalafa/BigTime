@@ -5,12 +5,12 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { SharedDebtMapper } from "@/components/partner/SharedDebtMapper";
 import { usePartnerStore } from "@/lib/store/partner-store";
-import { useFlowStore } from "@/lib/store/flow-store";
+import { useDebts } from "@/lib/hooks/useDebts";
 import { COUPLES_STEPS } from "@/types/partner";
 
 export default function SharedDebtsPage() {
   const router = useRouter();
-  const debts = useFlowStore((s) => s.debts);
+  const { debts } = useDebts();
   const sharedDebts = usePartnerStore((s) => s.sharedDebts);
   const toggleSharedDebt = usePartnerStore((s) => s.toggleSharedDebt);
   const setOnboardingStep = usePartnerStore((s) => s.setOnboardingStep);

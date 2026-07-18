@@ -3,8 +3,10 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import { useFlowStore } from "@/lib/store/flow-store";
 import { useAuth } from "@/lib/hooks/useAuth";
+import { useDebts } from "@/lib/hooks/useDebts";
+import { useIncomeData } from "@/lib/hooks/useIncomeData";
+import { useSpendingPlan } from "@/lib/hooks/useSpendingPlan";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -31,10 +33,10 @@ const categoryConfig: Record<
 
 export default function AutomationDashboardPage() {
   const { isAuthenticated, loading: authLoading } = useAuth();
-  const debts = useFlowStore((s) => s.debts);
-  const incomeSources = useFlowStore((s) => s.incomeSources);
-  const bonusItems = useFlowStore((s) => s.bonusItems);
-  const spendingPlan = useFlowStore((s) => s.spendingPlan);
+  // Server truth via the per-intent hooks (#53).
+  const { debts } = useDebts();
+  const { incomeSources, bonusItems } = useIncomeData();
+  const { spendingPlan } = useSpendingPlan();
 
   const [items, setItems] = useState<AutomationItemData[]>([]);
   const [isPending, startTransition] = useTransition();
