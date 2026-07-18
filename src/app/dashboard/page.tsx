@@ -130,14 +130,27 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <motion.h1
-        className="font-serif text-3xl text-text-primary mb-2"
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-      >
-        Your Dashboard
-      </motion.h1>
+      <div className="flex items-start justify-between">
+        <motion.h1
+          className="font-serif text-3xl text-text-primary mb-2"
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+        >
+          Your Dashboard
+        </motion.h1>
+        {/* Settings lost its nav slot (#60) and launches from Home. */}
+        <Link
+          href="/dashboard/settings"
+          aria-label="Settings"
+          className="text-text-secondary hover:text-text-primary transition-colors mt-1.5"
+        >
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="10" cy="10" r="3" stroke="currentColor" strokeWidth="1.5" />
+            <path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.93 4.93l1.41 1.41M13.66 13.66l1.41 1.41M4.93 15.07l1.41-1.41M13.66 6.34l1.41-1.41" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </Link>
+      </div>
       <p className="text-text-secondary font-sans text-sm mb-8">
         Everything in your plan — one click to adjust any area.
       </p>

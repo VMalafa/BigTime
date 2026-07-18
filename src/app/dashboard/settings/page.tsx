@@ -36,6 +36,20 @@ export default function SettingsPage() {
         </Link>
       </Card>
 
+      {/* Automation lost its nav slot (#60) and lives here until its One
+          Flow merge (#26) lands. */}
+      <Card>
+        <h2 className="font-serif text-xl mb-4">Automation</h2>
+        <p className="text-text-secondary text-sm mb-4">
+          The one-time setup steps that keep money moving on its own.
+        </p>
+        <Link href="/dashboard/automation">
+          <Button variant="secondary" size="sm">
+            Automation &amp; Next Steps
+          </Button>
+        </Link>
+      </Card>
+
       <Card>
         <h2 className="font-serif text-xl mb-4">Partner Mode</h2>
         <p className="text-text-secondary text-sm mb-4">
