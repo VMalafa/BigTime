@@ -23,6 +23,7 @@ model User {
   categoryRules         CategoryRule[]
   proposalDecisions     ProposalDecision[]
   calendarSources       CalendarSource[]
+  calendarFeedTokens    CalendarFeedToken[]
 }
 
 model Profile {
@@ -469,8 +470,32 @@ model CalendarSource {
   // break / event / academic). Another source may differ.
   categories  String[]
   events      Event[]
+  feedTokens  CalendarFeedToken[]
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
+
+  @@index([userId])
+}
+
+// Subscribe-once calendar feeds (#90): the token IS the auth — subscription
+// clients can't send credentials, so the long random URL is the capability
+// (ADR-0001's consent posture, outbound). Revoke = delete the row and every
+// subscribed device silently stops updating; rotate = replace the token.
+// Money moments are derived live and never stored as Events, so they can
+// never leak into a feed.
+model CalendarFeedToken {
+  id               String          @id @default(uuid())
+  userId           String
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // 32 random bytes, base64url (43 chars) — long enough that the URL is
+  // the secret; the unique index makes lookup one indexed probe.
+  token            String          @unique
+  // null = the whole Household Timeline; set = a single Calendar Source
+  // ("just Corbett" for a grandparent or sitter).
+  calendarSourceId String?
+  calendarSource   CalendarSource? @relation(fields: [calendarSourceId], references: [id], onDelete: Cascade)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
 
   @@index([userId])
 }
