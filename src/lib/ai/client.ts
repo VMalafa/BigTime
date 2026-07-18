@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { anthropicModel } from "@/lib/ai/config";
 
 let client: Anthropic | null = null;
 
@@ -18,7 +19,7 @@ export async function generateAIResponse(
 ): Promise<string> {
   const anthropic = getAnthropicClient();
   const message = await anthropic.messages.create({
-    model: "claude-sonnet-4-20250514",
+    model: anthropicModel(),
     max_tokens: maxTokens,
     system: systemPrompt,
     messages: [{ role: "user", content: userMessage }],

@@ -13,6 +13,16 @@ import { parseIcsCalendar } from "@/lib/timeline/ics";
 import { diffAgainstExisting } from "@/lib/timeline/ingestion";
 import { normalizeEventTitle } from "@/lib/timeline/natural-key";
 import { createEvent, type CreateEventInput } from "@/app/actions/events";
+import { getAnthropicClient } from "@/lib/ai/client";
+import { anthropicModel } from "@/lib/ai/config";
+import {
+  buildExtractionSystemPrompt,
+  EXTRACTION_TOOL,
+  EXTRACTION_TOOL_NAME,
+  validateExtraction,
+  type ExtractedEvent,
+  type ExtractionResult,
+} from "@/lib/timeline/extraction";
 
 const CALENDAR_PATH = "/dashboard/calendar";
 const MAX_ICS_BYTES = 1_000_000;
@@ -170,4 +180,211 @@ export async function createManualEvent(input: ManualEventInput) {
   });
   if (result.ok) revalidatePath(CALENDAR_PATH);
   return result;
+}
+
+// ---------------------------------------------------------------------------
+// AI extraction (#57): the real-world path — a photo or pasted text of a
+// school calendar, extracted by Claude through a structured-output tool
+// schema, landing as DRAFT Events in the same tiered ratification surface.
+// Runs in-app on ANTHROPIC_API_KEY (bursty, user-initiated, cents per
+// school year — NOT the ADR-0003 Max batch). The upload lives only in this
+// request's memory: it is sent to the extraction API and never written to
+// disk or database (no retention, no scope creep beyond calendar imports).
+
+const MAX_TEXT_CHARS = 100_000;
+const MAX_IMAGE_BASE64_CHARS = 8_000_000; // ~6 MB decoded
+
+type ImageMediaType = "image/jpeg" | "image/png" | "image/webp" | "image/gif";
+
+const IMAGE_MEDIA_TYPES = new Set<string>([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+]);
+
+const EXTRACTION_FAILED_MESSAGE =
+  "We couldn't read that calendar — try a clearer photo or paste the text, or add events by hand below.";
+
+export async function extractCalendarEvents(input: {
+  text?: string;
+  image?: { mediaType: string; dataBase64: string };
+  /** e.g. "2026-27" — carried in the prompt for year inference. */
+  academicYearHint: string;
+}): Promise<{ ok: true; extraction: ExtractionResult } | { error: string }> {
+  const userId = await requireUserId();
+  if (!userId) return { error: "Not signed in." };
+
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return { error: EXTRACTION_FAILED_MESSAGE };
+  }
+  const text = input.text?.trim();
+  if (!text && !input.image) {
+    return { error: "Paste the calendar text or choose a photo first." };
+  }
+  if (text && text.length > MAX_TEXT_CHARS) {
+    return { error: "That text is too long for a calendar import." };
+  }
+  if (input.image) {
+    if (!IMAGE_MEDIA_TYPES.has(input.image.mediaType)) {
+      return { error: "Use a JPEG, PNG, WebP, or GIF photo." };
+    }
+    if (input.image.dataBase64.length > MAX_IMAGE_BASE64_CHARS) {
+      return { error: "That photo is too large — try a smaller one." };
+    }
+  }
+
+  const yearHint = input.academicYearHint.trim() || "current";
+
+  try {
+    const anthropic = getAnthropicClient();
+    const content: Array<
+      | { type: "text"; text: string }
+      | {
+          type: "image";
+          source: { type: "base64"; media_type: ImageMediaType; data: string };
+        }
+    > = [];
+    if (input.image) {
+      content.push({
+        type: "image",
+        source: {
+          type: "base64",
+          media_type: input.image.mediaType as ImageMediaType,
+          data: input.image.dataBase64,
+        },
+      });
+    }
+    content.push({
+      type: "text",
+      text: text
+        ? `Transcribe every dated event from this calendar text:\n\n${text}`
+        : "Transcribe every dated event from this calendar photo.",
+    });
+
+    const message = await anthropic.messages.create({
+      model: anthropicModel(),
+      max_tokens: 8192,
+      system: buildExtractionSystemPrompt(yearHint),
+      tools: [EXTRACTION_TOOL],
+      tool_choice: { type: "tool", name: EXTRACTION_TOOL_NAME },
+      messages: [{ role: "user", content }],
+    });
+
+    const toolUse = message.content.find((b) => b.type === "tool_use");
+    const extraction = toolUse ? validateExtraction(toolUse.input) : null;
+    if (!extraction || extraction.events.length === 0) {
+      return { error: EXTRACTION_FAILED_MESSAGE };
+    }
+    return { ok: true, extraction };
+  } catch {
+    // Degrade gracefully to manual entry — never a stack trace at the user.
+    return { error: EXTRACTION_FAILED_MESSAGE };
+  }
+}
+
+/** Land validated extraction output as DRAFT Events on an IMPORT_PHOTO
+ * Calendar Source, with the same natural-key dedup as ICS re-imports. */
+export async function importExtractedEvents(input: {
+  sourceName: string;
+  categories: string[];
+  events: ExtractedEvent[];
+}): Promise<ImportIcsResult | { error: string }> {
+  const userId = await requireUserId();
+  if (!userId) return { error: "Not signed in." };
+  if (input.events.length === 0) return { error: "Nothing to import." };
+
+  const sourceName = input.sourceName.trim() || "Imported photo calendar";
+  const vocabulary = [
+    ...new Set(
+      input.categories
+        .map((c) => c.trim().toLowerCase())
+        .filter((c) => c.length > 0)
+    ),
+  ];
+  if (vocabulary.length === 0) vocabulary.push("event");
+
+  let source = await prisma.calendarSource.findFirst({
+    where: { userId, kind: "IMPORT_PHOTO", name: sourceName },
+    include: { events: { select: { startDate: true, normalizedTitle: true } } },
+  });
+  if (!source) {
+    source = await prisma.calendarSource.create({
+      data: {
+        userId,
+        name: sourceName,
+        kind: "IMPORT_PHOTO",
+        categories: vocabulary,
+      },
+      include: {
+        events: { select: { startDate: true, normalizedTitle: true } },
+      },
+    });
+  } else {
+    // A reissued artifact may grow the vocabulary; the source owns it.
+    const grown = [...new Set([...source.categories, ...vocabulary])];
+    if (grown.length !== source.categories.length) {
+      await prisma.calendarSource.update({
+        where: { id: source.id },
+        data: { categories: grown },
+      });
+      source = { ...source, categories: grown };
+    }
+  }
+
+  const existingKeys = new Set(
+    source.events.map(
+      (e) => `${e.startDate.toISOString().slice(0, 10)}|${e.normalizedTitle}`
+    )
+  );
+  const diff = diffAgainstExisting(
+    input.events.map((e) => ({
+      startDate: e.date,
+      endDate: e.end,
+      title: e.title,
+      note: e.note,
+    })),
+    existingKeys
+  );
+
+  if (diff.fresh.length > 0) {
+    const byKey = new Map(
+      input.events.map((e) => [
+        `${e.date}|${normalizeEventTitle(e.title)}`,
+        e,
+      ])
+    );
+    await prisma.event.createMany({
+      data: diff.fresh.map((e) => {
+        const original = byKey.get(
+          `${e.startDate}|${normalizeEventTitle(e.title)}`
+        );
+        const category = original?.category ?? source.categories[0];
+        return {
+          calendarSourceId: source.id,
+          startDate: new Date(`${e.startDate}T00:00:00.000Z`),
+          endDate: e.endDate ? new Date(`${e.endDate}T00:00:00.000Z`) : null,
+          title: e.title,
+          normalizedTitle: normalizeEventTitle(e.title),
+          category: source.categories.includes(category)
+            ? category
+            : source.categories[0],
+          note: e.note ?? null,
+          status: "DRAFT" as const,
+        };
+      }),
+      skipDuplicates: true,
+    });
+  }
+
+  revalidatePath(CALENDAR_PATH);
+  return {
+    ok: true,
+    sourceId: source.id,
+    sourceName,
+    created: diff.fresh.length,
+    alreadyKnown: diff.existing,
+    duplicatesInFile: diff.duplicatesInFile,
+    skipped: 0,
+  };
 }
