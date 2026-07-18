@@ -40,9 +40,7 @@ export function useIncomeData() {
   // same snapshot.
   useEffect(() => {
     if (loading || !isAuthenticated) return;
-    getIncomeData().then((data) => {
-      if (data) incomeCache.set(data);
-    });
+    void incomeCache.hydrate(getIncomeData);
   }, [isAuthenticated, loading]);
 
   async function addIncome(input: IncomeSourceInput): Promise<boolean> {

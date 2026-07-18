@@ -35,15 +35,16 @@ export function useDebts() {
   const [error, setError] = useState<string | null>(null);
 
   function refresh(): Promise<void> {
-    return getDebtsData().then((data) => {
-      if (!data) return;
-      debtsCache.set({
+    return debtsCache.hydrate(async () => {
+      const data = await getDebtsData();
+      if (!data) return null;
+      return {
         debts: data.map(({ mapped, ...debt }) => {
           void mapped;
           return debt;
         }),
         mappedIds: data.filter((d) => d.mapped).map((d) => d.id),
-      });
+      };
     });
   }
 

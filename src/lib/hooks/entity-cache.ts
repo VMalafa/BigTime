@@ -12,11 +12,13 @@ import { useSyncExternalStore } from "react";
 export interface EntityCache<T> {
   get: () => T;
   set: (next: T | ((previous: T) => T)) => void;
+  hydrate: (load: () => Promise<T | null | undefined>) => Promise<void>;
   use: () => T;
 }
 
 export function createEntityCache<T>(initial: T): EntityCache<T> {
   let value = initial;
+  let version = 0;
   const listeners = new Set<() => void>();
 
   const subscribe = (listener: () => void) => {
@@ -26,12 +28,32 @@ export function createEntityCache<T>(initial: T): EntityCache<T> {
     };
   };
 
+  const set = (next: T | ((previous: T) => T)) => {
+    value = typeof next === "function" ? (next as (p: T) => T)(value) : next;
+    version += 1;
+    listeners.forEach((listener) => listener());
+  };
+
   return {
     get: () => value,
-    set: (next) => {
-      value =
-        typeof next === "function" ? (next as (p: T) => T)(value) : next;
-      listeners.forEach((listener) => listener());
+    set,
+    // Hydration reads race the awaited mutations: a snapshot fetched before
+    // a mutation can resolve after it and would silently roll the mutation
+    // back. A stale snapshot can't just be dropped either — it may hold rows
+    // the cache has never seen (mutating before first hydration lands). So:
+    // apply the snapshot only if nothing wrote while it was in flight, and
+    // otherwise fetch again — the retry's snapshot includes the interfering
+    // write's server truth, so the loop converges.
+    hydrate: async (load) => {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const seen = version;
+        const next = await load();
+        if (next == null) return;
+        if (version === seen) {
+          set(next);
+          return;
+        }
+      }
     },
     use: () =>
       useSyncExternalStore(

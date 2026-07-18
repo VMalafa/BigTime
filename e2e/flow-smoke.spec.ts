@@ -72,10 +72,14 @@ test.describe("signed-in flow", () => {
     await page.getByLabel("Income Source").fill("E2E Fast Nav Income");
     await page.getByLabel("Monthly Amount").fill("123");
 
+    // Match the add action's own POST (its body carries the new name) — a
+    // late-resolving hydration read also POSTs to this URL, and matching it
+    // would let the navigation below abort the still-in-flight write.
     const addRoundTrip = page.waitForResponse(
       (response) =>
         response.request().method() === "POST" &&
-        response.url().includes("/flow/income")
+        response.url().includes("/flow/income") &&
+        (response.request().postData() ?? "").includes("E2E Fast Nav Income")
     );
     await page.getByRole("button", { name: "Add Income" }).click();
     // Optimistic: the row is visible before the server answers.
@@ -90,12 +94,10 @@ test.describe("signed-in flow", () => {
     });
 
     // Awaited remove; a reload then proves the delete reached the server
-    // (a failed delete would re-hydrate the row from server truth).
-    const removeRoundTrip = page.waitForResponse(
-      (response) =>
-        response.request().method() === "POST" &&
-        response.url().includes("/dashboard/income")
-    );
+    // (a failed delete would re-hydrate the row from server truth). Drain
+    // ALL in-flight requests before reloading — a response-predicate wait
+    // can be satisfied by a concurrent hydration read while the remove
+    // action is still in flight, and the reload would abort it mid-write.
     await page
       .locator("div")
       .filter({ hasText: "E2E Fast Nav Income" })
@@ -103,9 +105,11 @@ test.describe("signed-in flow", () => {
       .last()
       .getByRole("button", { name: "Remove" })
       .click();
-    await removeRoundTrip;
+    await page.waitForLoadState("networkidle");
     await page.reload();
-    await expect(page.getByText("Regular Income")).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Regular Income" })
+    ).toBeVisible();
     await expect(page.getByText("E2E Fast Nav Income")).toHaveCount(0);
   });
 
@@ -119,10 +123,12 @@ test.describe("signed-in flow", () => {
     await page.getByLabel("Line item name").fill("E2E Fast Nav Utility");
     await page.getByLabel("Monthly amount").fill("77");
 
+    // Body-marker match, same reason as the income add above.
     const addRoundTrip = page.waitForResponse(
       (response) =>
         response.request().method() === "POST" &&
-        response.url().includes("/flow/fixed-costs")
+        response.url().includes("/flow/fixed-costs") &&
+        (response.request().postData() ?? "").includes("E2E Fast Nav Utility")
     );
     await page.getByRole("button", { name: "Add line item" }).click();
     // Optimistic: visible before the server answers.
@@ -136,11 +142,8 @@ test.describe("signed-in flow", () => {
       timeout: 15_000,
     });
 
-    const removeRoundTrip = page.waitForResponse(
-      (response) =>
-        response.request().method() === "POST" &&
-        response.url().includes("/flow/fixed-costs")
-    );
+    // Network drain instead of a response-predicate wait — same reason as
+    // the income remove above.
     await page
       .locator("div")
       .filter({ hasText: "E2E Fast Nav Utility" })
@@ -148,7 +151,7 @@ test.describe("signed-in flow", () => {
       .last()
       .getByRole("button", { name: "Remove" })
       .click();
-    await removeRoundTrip;
+    await page.waitForLoadState("networkidle");
     await page.reload();
     await expect(page.getByText("What's actually locked in?")).toBeVisible();
     await expect(page.getByText("E2E Fast Nav Utility")).toHaveCount(0);

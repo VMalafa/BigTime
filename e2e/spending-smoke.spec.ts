@@ -157,10 +157,14 @@ test("linked path: confidence-tiered Proposals on fixed-costs and debts steps", 
   // $6,000 existing + $5,500 derived = $11,500 effective monthly.
   // Wait for the confirmation's server round-trip before navigating away —
   // the action is fired optimistically and a same-tick navigation can beat it.
+  // Body-marker match: the confirm action's POST carries the merchant
+  // pattern; a late hydration read also POSTs to this URL and must not
+  // satisfy this wait.
   const confirmRoundTrip = page.waitForResponse(
     (response) =>
       response.request().method() === "POST" &&
-      response.url().includes("/flow/income")
+      response.url().includes("/flow/income") &&
+      (response.request().postData() ?? "").includes("ACME CORP")
   );
   await page.getByRole("button", { name: "Confirm income" }).click();
   await confirmRoundTrip;

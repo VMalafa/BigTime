@@ -50,9 +50,7 @@ export function useSpendingPlan() {
 
   useEffect(() => {
     if (loading || !isAuthenticated) return;
-    getSpendingPlanData().then((plan) => {
-      if (plan) planCache.set(plan);
-    });
+    void planCache.hydrate(getSpendingPlanData);
   }, [isAuthenticated, loading]);
 
   async function run(

@@ -42,14 +42,14 @@ export function useReflection() {
 
   useEffect(() => {
     if (loading || !isAuthenticated) return;
-    getReflectionData().then((data) => {
-      if (data) {
-        reflectionCache.set({
-          scripts: data.scripts,
-          moneyType: data.moneyType,
-          moneyDials: { ...DEFAULT_DIALS, ...data.moneyDials },
-        });
-      }
+    void reflectionCache.hydrate(async () => {
+      const data = await getReflectionData();
+      if (!data) return null;
+      return {
+        scripts: data.scripts,
+        moneyType: data.moneyType,
+        moneyDials: { ...DEFAULT_DIALS, ...data.moneyDials },
+      };
     });
   }, [isAuthenticated, loading]);
 
