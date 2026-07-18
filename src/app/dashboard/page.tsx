@@ -17,6 +17,8 @@ import { Card } from "@/components/ui/Card";
 import { formatCurrency, formatMonths } from "@/lib/utils/format";
 import { calculateBonusNet } from "@/lib/calculations/bonus-tax";
 import Link from "next/link";
+// PROTOTYPE (wayfinder #27) — throwaway variant gate; no ?variant= → untouched.
+import { OneTruthPrototype } from "./prototype-one-truth";
 
 const defaultPlan = {
   fixedCostsPercent: 55,
@@ -146,6 +148,7 @@ export default function DashboardPage() {
   const isSoloHousehold = (household?.profileCount ?? 1) === 1;
 
   return (
+    <OneTruthPrototype>
     <div>
       <motion.h1
         className="font-serif text-3xl text-text-primary mb-2"
@@ -296,5 +299,6 @@ export default function DashboardPage() {
         )}
       </div>
     </div>
+    </OneTruthPrototype>
   );
 }
