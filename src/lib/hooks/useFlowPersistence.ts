@@ -8,8 +8,6 @@ import {
   persistScripts,
   persistMoneyType,
   persistDebts,
-  persistIncomeSources,
-  persistBonusItems,
   persistSpendingPlan,
   persistMoneyDials,
 } from "@/app/actions/flow-persistence";
@@ -43,12 +41,13 @@ export function useFlowPersistence() {
       // Serialize relevant state to detect actual changes. `spendingPlan`
       // already includes `fixedCostLineItems` and `fixedCostsOverridden`, so
       // edits to line items flow through the same debounced flush.
+      // Income sources and bonus items are absent by design (#49): they are
+      // server-authoritative with awaited per-intent actions — a whole-array
+      // flush of them would reintroduce the clobbering the conversion killed.
       const stateKey = JSON.stringify({
         scripts: state.scripts,
         moneyType: state.moneyType,
         debts: state.debts,
-        incomeSources: state.incomeSources,
-        bonusItems: state.bonusItems,
         spendingPlan: state.spendingPlan,
         moneyDials: state.moneyDials,
       });
@@ -64,8 +63,6 @@ export function useFlowPersistence() {
             persistScripts(state.scripts),
             state.moneyType ? persistMoneyType(state.moneyType) : null,
             persistDebts(state.debts),
-            persistIncomeSources(state.incomeSources),
-            persistBonusItems(state.bonusItems),
             state.spendingPlan
               ? persistSpendingPlan(state.spendingPlan)
               : null,

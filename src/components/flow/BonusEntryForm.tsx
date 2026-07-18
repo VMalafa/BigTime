@@ -6,12 +6,9 @@ import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import {
-  useFlowStore,
-  type BonusEntry,
-  type BonusFrequency,
-} from "@/lib/store/flow-store";
-import { generateId, isPositiveNumber } from "@/lib/utils/validation";
+import type { BonusEntry, BonusFrequency } from "@/lib/store/flow-store";
+import { useIncomeData } from "@/lib/hooks/useIncomeData";
+import { isPositiveNumber } from "@/lib/utils/validation";
 import { formatCurrency } from "@/lib/utils/format";
 import {
   DEFAULT_BONUS_TAX_RATE,
@@ -40,10 +37,11 @@ function formatDate(iso?: string): string {
 }
 
 export function BonusEntryForm() {
-  const bonusItems = useFlowStore((s) => s.bonusItems);
-  const addBonus = useFlowStore((s) => s.addBonus);
-  const removeBonus = useFlowStore((s) => s.removeBonus);
+  // Server-authoritative (#49): awaited per-intent actions with optimistic
+  // UI + rollback; the list is server truth, shared with the dashboard.
+  const { bonusItems, addBonus, removeBonus, error } = useIncomeData();
 
+  const [isSaving, setIsSaving] = useState(false);
   const [name, setName] = useState("");
   const [grossAmount, setGrossAmount] = useState("");
   const [taxRate, setTaxRate] = useState(String(DEFAULT_BONUS_TAX_RATE));
@@ -64,11 +62,11 @@ export function BonusEntryForm() {
     return Object.keys(next).length === 0;
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!validate()) return;
-    addBonus({
-      id: generateId(),
+    setIsSaving(true);
+    const added = await addBonus({
       name: name.trim(),
       grossAmount: Number(grossAmount),
       estimatedTaxRate: Number(taxRate),
@@ -76,6 +74,8 @@ export function BonusEntryForm() {
       expectedDate: expectedDate || undefined,
       notes: notes.trim() || undefined,
     });
+    setIsSaving(false);
+    if (!added) return; // rollback already happened; hook error renders below
     setName("");
     setGrossAmount("");
     setTaxRate(String(DEFAULT_BONUS_TAX_RATE));
@@ -213,9 +213,20 @@ export function BonusEntryForm() {
           </motion.div>
         )}
 
-        <Button type="submit" variant="primary" className="w-full">
-          Add Bonus
+        <Button
+          type="submit"
+          variant="primary"
+          className="w-full"
+          disabled={isSaving}
+        >
+          {isSaving ? "Adding…" : "Add Bonus"}
         </Button>
+
+        {error && (
+          <p role="alert" className="text-sm text-red-600 font-sans">
+            {error}
+          </p>
+        )}
       </form>
 
       {bonusItems.length > 0 && (

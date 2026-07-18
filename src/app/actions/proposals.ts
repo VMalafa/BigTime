@@ -1,14 +1,15 @@
 "use server";
 
 // Proposal server actions (CONTEXT.md): the feed drafts, the human ratifies.
-// Nothing here enters the plan — confirmation happens in the flow store
-// (which persists via the existing authenticated machinery); these actions
-// compute Proposals, remember decisions, seed CategoryRules, and create
-// mapped Debts.
+// These actions compute Proposals, remember decisions, seed CategoryRules,
+// and create mapped Debts. Income confirmation writes its IncomeSource row
+// here directly (#49, server-authoritative); fixed-cost confirmation still
+// enters via the flow store until #50 converts it.
 
 import type { $Enums } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
+import { getActiveProfileId } from "@/lib/active-profile";
 import { detectRecurringPatterns } from "@/lib/recurring/pattern-engine";
 import {
   buildDebtProposals,
@@ -213,24 +214,68 @@ export async function confirmFixedCostProposals(
 /** Remembers an income confirmation; the IncomeSource itself is added
  * client-side through the flow store like typed income, so it feeds the
  * CSP suggested-percent machinery identically. */
+export interface ConfirmedIncomeSource {
+  id: string;
+  name: string;
+  monthlyAmount: number;
+  isAfterTax: boolean;
+}
+
 export async function confirmIncomeProposal(
   merchantPattern: string
-): Promise<{ ok?: boolean; error?: string }> {
+): Promise<{ ok?: boolean; incomeSource?: ConfirmedIncomeSource; error?: string }> {
   const user = await requireUser();
   if (!user) return { error: "Not signed in." };
-  await prisma.proposalDecision.upsert({
-    where: {
-      userId_kind_key: { userId: user.id, kind: "INCOME", key: merchantPattern },
+
+  // Re-derive the Proposal server-side so the created IncomeSource carries
+  // feed-derived facts, never client-supplied ones. Since #49 the income row
+  // is written here directly (awaited, per-intent) — there is no store flush
+  // left to carry it.
+  const proposals = await getFlowProposals();
+  const proposal = proposals.income.find(
+    (p) => p.merchantPattern === merchantPattern
+  );
+  if (!proposal) return { error: "Income proposal not found." };
+
+  const profileId = await getActiveProfileId();
+  if (!profileId) return { error: "No profile found." };
+
+  const [row] = await prisma.$transaction([
+    prisma.incomeSource.create({
+      data: {
+        profileId,
+        name: proposal.name,
+        monthlyAmount: proposal.monthlyAmountCents / 100,
+        isAfterTax: true,
+      },
+    }),
+    prisma.proposalDecision.upsert({
+      where: {
+        userId_kind_key: {
+          userId: user.id,
+          kind: "INCOME",
+          key: merchantPattern,
+        },
+      },
+      update: { decision: "CONFIRMED" },
+      create: {
+        userId: user.id,
+        kind: "INCOME",
+        key: merchantPattern,
+        decision: "CONFIRMED",
+      },
+    }),
+  ]);
+
+  return {
+    ok: true,
+    incomeSource: {
+      id: row.id,
+      name: row.name,
+      monthlyAmount: Number(row.monthlyAmount),
+      isAfterTax: row.isAfterTax,
     },
-    update: { decision: "CONFIRMED" },
-    create: {
-      userId: user.id,
-      kind: "INCOME",
-      key: merchantPattern,
-      decision: "CONFIRMED",
-    },
-  });
-  return { ok: true };
+  };
 }
 
 /** Remembers a dismissal — the same Proposal is never raised twice. */

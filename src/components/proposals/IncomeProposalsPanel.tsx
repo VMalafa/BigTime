@@ -8,7 +8,6 @@ import {
 } from "@/app/actions/proposals";
 import type { IncomeProposal } from "@/lib/proposals/proposals";
 import { useFlowStore } from "@/lib/store/flow-store";
-import { generateId } from "@/lib/utils/validation";
 import { formatCurrency } from "@/lib/utils/format";
 import { Button } from "@/components/ui/Button";
 
@@ -27,8 +26,8 @@ const CADENCE_LABELS: Record<string, string> = {
 };
 
 export function IncomeProposalsPanel() {
-  const addIncome = useFlowStore((s) => s.addIncome);
   const [proposals, setProposals] = useState<IncomeProposal[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
   useEffect(() => {
@@ -42,20 +41,37 @@ export function IncomeProposalsPanel() {
   if (proposals.length === 0) return null;
 
   function handleConfirm(proposal: IncomeProposal) {
+    setError(null);
+    // Optimistic: the card leaves and the income appears immediately; the
+    // awaited action (#49) writes the IncomeSource row server-side, and a
+    // failure rolls both back.
     setProposals((prev) =>
       prev.filter((p) => p.merchantPattern !== proposal.merchantPattern)
     );
-    // Flows into the CSP suggested-percent machinery exactly like typed
-    // income: one IncomeEntry in the store, persisted by the existing
-    // authenticated path.
-    addIncome({
-      id: generateId(),
+    const store = useFlowStore.getState();
+    const previousIncome = store.incomeSources;
+    const tempId = `pending-${proposal.merchantPattern}`;
+    store.addIncome({
+      id: tempId,
       name: proposal.name,
       monthlyAmount: proposal.monthlyAmountCents / 100,
       isAfterTax: true,
     });
     startTransition(async () => {
-      await confirmIncomeProposal(proposal.merchantPattern);
+      const result = await confirmIncomeProposal(proposal.merchantPattern);
+      if (result.error || !result.incomeSource) {
+        useFlowStore.setState({ incomeSources: previousIncome });
+        setProposals((prev) => [...prev, proposal]);
+        setError(result.error ?? "Could not confirm income. Try again.");
+        return;
+      }
+      const confirmed = result.incomeSource;
+      // Swap the optimistic row for the stable server row.
+      useFlowStore.setState((s) => ({
+        incomeSources: s.incomeSources.map((i) =>
+          i.id === tempId ? confirmed : i
+        ),
+      }));
     });
   }
 
@@ -80,6 +96,12 @@ export function IncomeProposalsPanel() {
           confirmation — never bundled.
         </p>
       </div>
+
+      {error && (
+        <p role="alert" className="text-sm text-red-600 font-sans">
+          {error}
+        </p>
+      )}
 
       {proposals.map((proposal) => (
         <div
