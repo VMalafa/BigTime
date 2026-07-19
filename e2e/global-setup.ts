@@ -99,6 +99,8 @@ export default async function globalSetup() {
     // Calendar Sources from earlier ingestion runs (#55) — deleting the
     // source cascades to its Events, so every run reviews a fresh import.
     await prisma.calendarSource.deleteMany({ where: { userId: authUserId } });
+    // Inbound email ledger (#69) — fresh per run.
+    await prisma.inboundEmail.deleteMany({ where: { userId: authUserId } });
 
     await prisma.user.upsert({
       where: { id: authUserId },

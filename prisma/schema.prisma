@@ -27,6 +27,7 @@ model User {
   proposalDecisions     ProposalDecision[]
   calendarSources       CalendarSource[]
   calendarFeedTokens    CalendarFeedToken[]
+  inboundEmails         InboundEmail[]
 }
 
 model Profile {
@@ -450,6 +451,7 @@ enum CalendarSourceKind {
   IMPORT_PHOTO
   IMPORT_ICS
   MANUAL
+  EMAIL_FORWARD
 }
 
 // DRAFT -> CONFIRMED on ratification; DISMISSED rows are kept so a
@@ -474,6 +476,7 @@ model CalendarSource {
   categories  String[]
   events      Event[]
   feedTokens  CalendarFeedToken[]
+  inboundEmails InboundEmail[]
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
 
@@ -501,6 +504,38 @@ model CalendarFeedToken {
   updatedAt        DateTime        @updatedAt
 
   @@index([userId])
+}
+
+// The inbound email spine (#69): one row per forwarded email, whatever
+// became of it — extraction, deterministic .ics import, or parked with a
+// plain-language note. Never silently dropped (Honesty Rule); the raw
+// payload lives in Supabase Storage at storagePath.
+model InboundEmail {
+  id               String             @id @default(uuid())
+  userId           String
+  user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Postmark MessageID — webhook retries stay idempotent.
+  messageId        String             @unique
+  fromAddress      String
+  subject          String
+  receivedAt       DateTime
+  storagePath      String
+  status           InboundEmailStatus
+  // What happened, in the household's language.
+  note             String
+  eventsCreated    Int                @default(0)
+  calendarSourceId String?
+  calendarSource   CalendarSource?    @relation(fields: [calendarSourceId], references: [id], onDelete: SetNull)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@index([userId, createdAt])
+}
+
+enum InboundEmailStatus {
+  PROCESSED
+  PARKED
+  FAILED
 }
 
 model Event {
