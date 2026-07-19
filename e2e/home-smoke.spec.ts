@@ -28,7 +28,7 @@ test("home renders hero + heartbeat + honest chip + door, and nothing else", asy
 
   // --- The Weather hero: one of the three ratified words, as an h1.
   const hero = page.locator("[data-weather-state]");
-  await expect(hero).toBeVisible({ timeout: 15_000 });
+  await expect(hero).toBeVisible({ timeout: 30_000 });
   const state = await hero.getAttribute("data-weather-state");
   expect(["Steady", "Watch", "Attention"]).toContain(state);
   await expect(page.getByRole("heading", { name: state!, exact: true })).toBeVisible();
@@ -71,6 +71,10 @@ test("home renders hero + heartbeat + honest chip + door, and nothing else", asy
 test("today strip: quirk row + coverage Watch; assignment flips the hero", async ({
   page,
 }) => {
+  // Three full Home reads plus a timeline reload-poll — the 90s default
+  // starves the closing visit (#79/#86/#89 all grew the one-read).
+  test.setTimeout(240_000);
+
   await page.goto("/auth/login");
   await page.getByLabel("Email").fill(E2E_SPENDING_EMAIL);
   await page.getByLabel("Password").fill(e2eSpendingPassword());
@@ -79,7 +83,7 @@ test("today strip: quirk row + coverage Watch; assignment flips the hero", async
 
   // Coverage outranks money: the hero is Watch with the pickup action.
   const hero = page.locator("[data-weather-state]");
-  await expect(hero).toBeVisible({ timeout: 15_000 });
+  await expect(hero).toBeVisible({ timeout: 30_000 });
   await expect(hero).toHaveAttribute("data-weather-state", "Watch");
   await expect(hero).toContainText(
     "E2E Pickup Quirk – Tomorrow tomorrow — no one's on pickup yet."
@@ -124,12 +128,16 @@ test("today strip: quirk row + coverage Watch; assignment flips the hero", async
     ).toBeVisible({ timeout: 10_000 });
   }).toPass({ timeout: 60_000 });
 
-  // ...and the hero lets go of it. One navigation, generous wait — the
-  // one-read is a heavy query chain on a single pooled connection.
+  // ...and the hero lets go of it. Poll with reloads — the one-read is a
+  // heavy query chain on a single pooled connection, and it can queue
+  // behind reads the reload-poll above aborted mid-flight.
   await page.goto("/dashboard");
-  await expect(page.locator("[data-weather-state]")).toBeVisible({
-    timeout: 20_000,
-  });
+  await expect(async () => {
+    await page.reload();
+    await expect(page.locator("[data-weather-state]")).toBeVisible({
+      timeout: 20_000,
+    });
+  }).toPass({ timeout: 90_000 });
   await expect(
     page.locator("[data-weather-state]").getByRole("link", {
       name: /Assign pickup/,

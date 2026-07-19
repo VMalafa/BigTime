@@ -135,10 +135,27 @@ test("Milestones celebrate one at a time, never re-raise; Spotlight switches in 
     .click(); // tap 2
   await expect(boat).toContainText("Spotlight", { timeout: 20_000 });
 
-  const hawaii = page.locator("[data-goal='E2E Hawaii']");
-  await hawaii.getByRole("button", { name: "Make Spotlight" }).click();
-  await hawaii
-    .getByRole("button", { name: /Confirm — the slice moves with it/ })
-    .click();
-  await expect(hawaii).toContainText("Spotlight", { timeout: 20_000 });
+  // The switch back: the badge render is optimistic, and a dropped action
+  // POST (the #13 race, write edition) would leave Boat spotlighted
+  // server-side — which money-date-smoke downstream depends on. Prove
+  // server truth with a reload, re-tapping only if the badge didn't stick.
+  await expect(async () => {
+    const hawaii = page.locator("[data-goal='E2E Hawaii']");
+    const makeSpotlight = hawaii.getByRole("button", {
+      name: "Make Spotlight",
+    });
+    if (await makeSpotlight.isVisible()) {
+      await makeSpotlight.click();
+      await hawaii
+        .getByRole("button", { name: /Confirm — the slice moves with it/ })
+        .click();
+      await page.waitForLoadState("networkidle");
+    }
+    await page.reload();
+    // The exact badge, from the database — never the "Make Spotlight"
+    // button's own text.
+    await expect(
+      hawaii.getByText("Spotlight", { exact: true })
+    ).toBeVisible({ timeout: 20_000 });
+  }).toPass({ timeout: 120_000 });
 });

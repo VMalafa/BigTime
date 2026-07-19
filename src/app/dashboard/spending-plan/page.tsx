@@ -7,6 +7,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { CSPSliders } from "@/components/flow/CSPSliders";
 import { RealityCheckCard } from "@/components/flow/RealityCheckCard";
+import { BonusPlanCard } from "@/components/dashboard/BonusPlanCard";
 import { Button } from "@/components/ui/Button";
 import type { SpendingPlanData } from "@/lib/store/flow-store";
 import { useSpendingPlan } from "@/lib/hooks/useSpendingPlan";
@@ -249,6 +250,10 @@ export default function SpendingPlanPage() {
             </span>
           )}
         </div>
+
+        {/* The standing windfall split (#89), composed at the Plan step
+            with the ratified default pre-filled. */}
+        <BonusPlanCard />
       </div>
     </div>
   );
