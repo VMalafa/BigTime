@@ -18,6 +18,18 @@ interface PlanArea {
 // One Flow merge (#73) walks setup over canonical pages.
 const planAreas: PlanArea[] = [
   {
+    title: "Goals",
+    description: "One dream per savings account — the Spotlight leads.",
+    href: "/dashboard/goals",
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.5" />
+        <circle cx="10" cy="10" r="3.5" stroke="currentColor" strokeWidth="1.5" />
+        <circle cx="10" cy="10" r="0.9" fill="currentColor" />
+      </svg>
+    ),
+  },
+  {
     title: "Income",
     description: "Paychecks and bonuses — what the household brings in.",
     href: "/dashboard/income",

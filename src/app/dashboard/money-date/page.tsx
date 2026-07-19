@@ -412,14 +412,41 @@ export default function MoneyDatePage() {
           className="flex-1 flex flex-col justify-center text-center py-10"
         >
           {eyebrow("Always end on the dream")}
-          <h1 className="font-serif text-3xl text-accent-gold">
-            Pick the goal this is all for
-          </h1>
-          <p className="text-text-primary text-base leading-relaxed font-sans mt-4">
-            The Spotlight Goal lives here soon — one dream, funded a slice
-            at a time, closing every Money Date. Until then, hold the
-            picture of it together.
-          </p>
+          {truth.spotlightGoal ? (
+            <>
+              <h1 className="font-serif text-4xl text-accent-gold">
+                {truth.spotlightGoal.emoji
+                  ? `${truth.spotlightGoal.emoji} `
+                  : ""}
+                {truth.spotlightGoal.name}
+              </h1>
+              <div className="mx-auto mt-4 w-full max-w-xs">
+                <div className="h-2 rounded-full bg-bg-secondary overflow-hidden">
+                  <div
+                    className="h-full bg-accent-gold"
+                    style={{ width: `${truth.spotlightGoal.percentFunded}%` }}
+                  />
+                </div>
+                <p className="mt-2 text-sm font-sans text-text-secondary">
+                  {truth.spotlightGoal.percentFunded}% funded
+                  {truth.spotlightGoal.sliceCents > 0
+                    ? ` · a ${(truth.spotlightGoal.sliceCents / 100).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })} slice every paycheck`
+                    : ""}
+                </p>
+              </div>
+            </>
+          ) : (
+            <>
+              <h1 className="font-serif text-3xl text-accent-gold">
+                Pick the goal this is all for
+              </h1>
+              <p className="text-text-primary text-base leading-relaxed font-sans mt-4">
+                The Spotlight Goal lives here soon — one dream, funded a
+                slice at a time, closing every Money Date. Until then, hold
+                the picture of it together.
+              </p>
+            </>
+          )}
           <div className="mt-8 flex items-center justify-center gap-3">
             <Button variant="ghost" size="sm" onClick={() => setStep(step - 1)}>
               Back

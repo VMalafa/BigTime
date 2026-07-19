@@ -29,6 +29,8 @@ model User {
   calendarFeedTokens    CalendarFeedToken[]
   inboundEmails         InboundEmail[]
   moneyDates            MoneyDate[]
+  goals                 Goal[]
+  milestones            Milestone[]
 }
 
 model Profile {
@@ -316,6 +318,7 @@ model LinkedAccount {
   profile        Profile?             @relation(fields: [profileId], references: [id], onDelete: SetNull)
   mappedDebtId   String?              @unique // Mapping: feed owns this Debt's balance
   mappedDebt     Debt?                @relation(fields: [mappedDebtId], references: [id], onDelete: SetNull)
+  goal           Goal?
   transactions   FeedTransaction[]
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
@@ -580,6 +583,70 @@ model Event {
 enum EventAssigneeExtra {
   SITTER
   EXTENDED_DAY
+}
+
+// Goals v1 (#86, ratified in #80): one dream per savings account. When
+// linked, the feed balance OWNS progress — manual amounts are only for
+// unlinked Goals. Exactly one Spotlight at a time (enforced
+// transactionally in the actions — Prisma can't express the partial
+// unique index); its slice is a per-Pay-Period Earmark the heartbeat
+// subtracts from Safe-to-Spend.
+model Goal {
+  id              String         @id @default(uuid())
+  userId          String
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name            String
+  emoji           String?
+  targetCents     Int
+  targetDate      DateTime?      @db.Date
+  // 1:1 with a savings LinkedAccount — one Goal per account, DB-enforced.
+  linkedAccountId String?        @unique
+  linkedAccount   LinkedAccount? @relation(fields: [linkedAccountId], references: [id], onDelete: SetNull)
+  // Progress while unlinked; ignored (never written) once linked.
+  manualCents     Int            @default(0)
+  isSpotlight     Boolean        @default(false)
+  // The Spotlight slice: reserved per Pay Period through the Earmark
+  // engine. 0 = no reservation.
+  sliceCents      Int            @default(0)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([userId])
+}
+
+// Milestones (#86): an additive event log — each 10% of a Goal funded,
+// each $1,000 of household debt gone, each debt paid off. The natural key
+// makes detection idempotent (no double-fires on refetch); rows persist
+// for the future past-river (#37). BASELINE rows anchor debt crossings
+// and never prompt.
+model Milestone {
+  id                     String          @id @default(uuid())
+  userId                 String
+  user                   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind                   MilestoneKind
+  key                    String
+  title                  String
+  detail                 String?
+  celebrationBudgetCents Int             @default(0)
+  status                 MilestoneStatus @default(RAISED)
+  raisedAt               DateTime        @default(now())
+  decidedAt              DateTime?
+
+  @@unique([userId, key])
+  @@index([userId, status])
+}
+
+enum MilestoneKind {
+  GOAL_PERCENT
+  DEBT_THOUSAND
+  DEBT_PAYOFF
+  DEBT_BASELINE
+}
+
+enum MilestoneStatus {
+  RAISED
+  ACCEPTED
+  DISMISSED
 }
 
 // The Money Date (#81, ratified in #62): raised by paycheck detection,

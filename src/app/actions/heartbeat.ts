@@ -13,6 +13,7 @@ import {
   filterPaycheckDeposits,
 } from "@/lib/heartbeat/pay-period";
 import { computeManualHeartbeat } from "@/lib/heartbeat/manual";
+import { sliceEarmark } from "@/lib/goals/engine";
 
 const LOOKBACK_MS = 180 * 24 * 60 * 60 * 1000;
 
@@ -119,6 +120,37 @@ export async function getHeartbeat(): Promise<HeartbeatData> {
   }));
 
   const { earmarks, undated } = deriveEarmarks(lineItems, chargePatterns, period);
+
+  // The Spotlight slice (#86): a per-Pay-Period reservation riding the
+  // Earmark engine — Safe-to-Spend subtracts it, covered-by-default
+  // styling applies, and an unfundable slice raises Weather like any
+  // other unfunded Earmark.
+  const spotlight = await prisma.goal.findFirst({
+    where: { userId: user.id, isSpotlight: true },
+    include: { linkedAccount: { select: { currentBalance: true } } },
+  });
+  const slice = sliceEarmark(
+    spotlight
+      ? {
+          id: spotlight.id,
+          name: spotlight.name,
+          emoji: spotlight.emoji,
+          targetCents: spotlight.targetCents,
+          linkedBalanceCents: spotlight.linkedAccount
+            ? Math.round(Number(spotlight.linkedAccount.currentBalance) * 100)
+            : null,
+          manualCents: spotlight.manualCents,
+          isSpotlight: true,
+          sliceCents: spotlight.sliceCents,
+        }
+      : null,
+    period.endExclusive
+  );
+  if (slice) {
+    earmarks.push(slice);
+    earmarks.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
+  }
+
   const safeToSpend = computeSafeToSpend(
     period,
     earmarks,

@@ -117,6 +117,7 @@ export function TimelineStream({
   people,
   rhythmNote,
   todayIso,
+  horizon,
 }: {
   events: TimelineEventItem[];
   moments: MoneyMoment[];
@@ -125,6 +126,8 @@ export function TimelineStream({
   rhythmNote: string | null;
   /** Date-only ISO — injected so renewal lead-time state stays pure. */
   todayIso: string;
+  /** "🌺 Hawaii · 34% funded" — the river always ends on the goal (#86). */
+  horizon?: string | null;
 }) {
   // Chip state: everything on by default; a chip toggles its slice out.
   const [mutedCategories, setMutedCategories] = useState<Set<string>>(
@@ -615,6 +618,16 @@ export function TimelineStream({
           </div>
         </section>
       ))}
+
+      {/* The horizon (#86): every scan ends on what it's all for. */}
+      {horizon && (
+        <div
+          data-timeline-horizon
+          className="rounded-xl border border-accent-gold/50 bg-accent-gold/10 px-5 py-4 text-center"
+        >
+          <p className="font-serif text-lg text-accent-gold">{horizon}</p>
+        </div>
+      )}
     </div>
   );
 
