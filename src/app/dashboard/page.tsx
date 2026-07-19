@@ -137,15 +137,33 @@ export default function DashboardPage() {
         >
           where did it go →
         </Link>
-        {/* Check-In stays launchable from Home (#60) until its Money Date
-            merge (#61/#81) lands. */}
+        {/* The Money Date merge (#81) landed: the ritual door replaces the
+            old Check-In prompt (its history lives in the Date's archive;
+            the /dashboard/check-in route still resolves). */}
         <Link
-          href="/dashboard/check-in"
+          href="/dashboard/money-date"
           className="text-xs font-sans text-text-secondary underline underline-offset-4 hover:text-text-primary transition-colors"
         >
-          Monthly Check-In →
+          Money Date →
         </Link>
       </div>
+
+      {/* The quiet payday banner (#81): a raised Date waits without
+          nagging; a moved one says where it went. */}
+      {truth?.moneyDate && truth.moneyDate.status !== "COMPLETED" && (
+        <Link
+          href="/dashboard/money-date"
+          data-money-date-banner
+          className="mb-4 block rounded-xl border border-accent-gold/40 bg-accent-gold/5 px-4 py-3 text-center hover:border-accent-gold transition-colors"
+        >
+          <span className="text-sm font-sans text-text-primary">
+            {truth.moneyDate.status === "RESCHEDULED" &&
+            truth.moneyDate.scheduledFor
+              ? `Money Date — waiting for you both, moved to ${new Date(`${truth.moneyDate.scheduledFor}T00:00:00.000Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })}.`
+              : "Payday. Your Money Date is ready — ten minutes, together."}
+          </span>
+        </Link>
+      )}
 
       {/* Quiet persistent nudge (#73): one flow, two fuels — manual is the
           fallback, and linking stays one tap away until it happens. */}

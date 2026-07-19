@@ -157,10 +157,16 @@ test("linked path: confidence-tiered Proposals on fixed-costs and debts steps", 
   await page.getByLabel("Minimum payment", { exact: true }).fill("35");
   await page.getByRole("button", { name: "Confirm Debt" }).click();
 
-  // The confirmed Debt lands in the debts list with the feed-owned balance.
-  await expect(
-    page.getByText("Total Remaining Debt")
-  ).toBeVisible({ timeout: 20_000 });
+  // The confirmed Debt lands in the debts list with the feed-owned
+  // balance. Drain the in-flight confirm first, then poll with reloads —
+  // the list's one-time fetch can race the write (#13).
+  await page.waitForLoadState("networkidle");
+  await expect(async () => {
+    await page.reload();
+    await expect(page.getByText("Total Remaining Debt")).toBeVisible({
+      timeout: 10_000,
+    });
+  }).toPass({ timeout: 60_000 });
   await expect(page.getByText("E2E Card").first()).toBeVisible();
 
   // --- Income Proposals: always individually confirmed, never bundled.
