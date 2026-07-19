@@ -17,6 +17,8 @@ import {
   type MoneyDateTruth,
 } from "@/app/actions/money-date";
 import { saveSpendingPlan } from "@/app/actions/spending-plan";
+import { saveBonusPlan } from "@/app/actions/bonus";
+import { validateBonusPlan, type BonusSplitPercents } from "@/lib/bonus/plan";
 import { investigateAction } from "@/lib/money-date/deep";
 import { CSPSliders } from "@/components/flow/CSPSliders";
 import { Button } from "@/components/ui/Button";
@@ -38,6 +40,7 @@ type CardKey =
   | "drift"
   | "csp"
   | "audit"
+  | "bonus"
   | "goal";
 
 function dateLabel(iso: string): string {
@@ -80,6 +83,7 @@ export default function MoneyDatePage() {
   const [rescheduleTo, setRescheduleTo] = useState("");
   const [planValues, setPlanValues] = useState<SpendingPlanData | null>(null);
   const [planSaving, setPlanSaving] = useState(false);
+  const [bonusValues, setBonusValues] = useState<BonusSplitPercents | null>(null);
   const [auditChoices, setAuditChoices] = useState<Map<string, "keep" | "investigate">>(
     new Map()
   );
@@ -89,6 +93,13 @@ export default function MoneyDatePage() {
     getMoneyDateTruth().then((data) => {
       setTruth(data);
       if (data?.deep?.plan) setPlanValues(data.deep.plan);
+      if (data?.deep?.bonusPlan) {
+        setBonusValues({
+          debtPercent: data.deep.bonusPlan.debtPercent,
+          goalPercent: data.deep.bonusPlan.goalPercent,
+          guiltFreePercent: data.deep.bonusPlan.guiltFreePercent,
+        });
+      }
     });
   }, []);
 
@@ -103,8 +114,19 @@ export default function MoneyDatePage() {
   const { current, beats, deep } = truth;
   const open = current && current.status !== "COMPLETED";
 
+  // The Bonus Plan tune-up (#89) joins only in months where a Moment
+  // fired — the action layer already gated deep.bonusPlan on that.
   const sequence: CardKey[] = deep
-    ? ["weather", "insight", "action", "drift", "csp", "audit", "goal"]
+    ? [
+        "weather",
+        "insight",
+        "action",
+        "drift",
+        "csp",
+        "audit",
+        ...(deep.bonusPlan ? (["bonus"] as const) : []),
+        "goal",
+      ]
     : ["weather", "insight", "action", "goal"];
   const total = sequence.length;
   const cardKey = step < total ? sequence[step] : null;
@@ -146,6 +168,31 @@ export default function MoneyDatePage() {
         if ("error" in saved && saved.error) {
           // Rollback (#29): the sliders return to server truth.
           setPlanValues(deep.plan);
+          setError(saved.error);
+          return;
+        }
+      }
+    }
+    // The Bonus Plan tune-up saves the standing split the same way (#89):
+    // awaited, validated to 100, rollback to server truth on a failed save.
+    if (cardKey === "bonus" && bonusValues && deep?.bonusPlan) {
+      const serverSplit = {
+        debtPercent: deep.bonusPlan.debtPercent,
+        goalPercent: deep.bonusPlan.goalPercent,
+        guiltFreePercent: deep.bonusPlan.guiltFreePercent,
+      };
+      if (JSON.stringify(bonusValues) !== JSON.stringify(serverSplit)) {
+        const invalid = validateBonusPlan(bonusValues);
+        if (invalid) {
+          setError(invalid);
+          return;
+        }
+        setPlanSaving(true);
+        setError(null);
+        const saved = await saveBonusPlan(bonusValues);
+        setPlanSaving(false);
+        if (saved.error) {
+          setBonusValues(serverSplit);
           setError(saved.error);
           return;
         }
@@ -400,6 +447,53 @@ export default function MoneyDatePage() {
                 )}
                 <CounselorDoor topic="We're doing our subscription audit and disagree about what to keep." />
                 {nextButton()}
+              </>
+            )}
+
+            {cardKey === "bonus" && deep?.bonusPlan && bonusValues && (
+              <>
+                {eyebrow("The monthly look")}
+                <h1 className="font-serif text-3xl text-text-primary">
+                  Bonus Plan
+                </h1>
+                <p className="text-text-secondary text-xs font-sans mt-3">
+                  A windfall landed this month. Still the split you&apos;d
+                  choose calmly? Most months this is a nod and a Next.
+                </p>
+                <div className="mt-4 flex items-center justify-center gap-3">
+                  {(
+                    [
+                      ["debtPercent", "Debt"],
+                      ["goalPercent", "Goal"],
+                      ["guiltFreePercent", "Guilt-free"],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <label
+                      key={key}
+                      className="flex flex-col items-center gap-1 text-xs font-sans text-text-secondary"
+                    >
+                      {label}
+                      <span className="flex items-center gap-0.5">
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={bonusValues[key]}
+                          onChange={(e) =>
+                            setBonusValues({
+                              ...bonusValues,
+                              [key]: e.target.valueAsNumber,
+                            })
+                          }
+                          className="w-16 rounded-md border border-bg-secondary px-2 py-1.5 text-sm font-sans text-text-primary text-right"
+                        />
+                        %
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                <CounselorDoor topic="We're revisiting our Bonus Plan — the standing split for windfalls — and want to talk through the priorities." />
+                {nextButton("Looks right — Next")}
               </>
             )}
           </motion.section>

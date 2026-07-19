@@ -22,6 +22,11 @@ import {
   DIAL_DRIFT_MIN_TRANSACTIONS,
 } from "@/lib/spending/dial-drift";
 import { goalPercentFunded, goalProgressCents } from "@/lib/goals/engine";
+import {
+  bonusMomentFiredThisMonth,
+  getBonusPlan,
+  type BonusPlanData,
+} from "@/app/actions/bonus";
 import { detectRecurringPatterns } from "@/lib/recurring/pattern-engine";
 import type { SpendingPlanData } from "@/lib/store/flow-store";
 import { getSpendingPlanData } from "@/app/actions/spending-plan";
@@ -92,6 +97,9 @@ export interface MoneyDateDeep {
   dialDrift: DialDriftReview;
   plan: SpendingPlanData | null;
   subscriptions: SubscriptionAuditRow[];
+  /** The Bonus Plan tune-up (#89): present only in months where a Bonus
+   * Moment fired — reflection has a rhythm, not a backlog. */
+  bonusPlan: BonusPlanData | null;
 }
 
 export interface SpotlightGoalCard {
@@ -242,6 +250,11 @@ export async function getMoneyDateTruth(): Promise<MoneyDateTruth | null> {
         }))
       );
 
+      // The Bonus Plan card rides the deep agenda only in Moment months (#89).
+      const bonusPlan = (await bonusMomentFiredThisMonth())
+        ? await getBonusPlan()
+        : null;
+
       deep = {
         dialDrift: buildDialDriftReview(
           dials.map((d) => ({ category: d.category, level: d.level })),
@@ -250,6 +263,7 @@ export async function getMoneyDateTruth(): Promise<MoneyDateTruth | null> {
         ),
         plan,
         subscriptions: buildSubscriptionAudit(patterns),
+        bonusPlan,
       };
     }
   }

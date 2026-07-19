@@ -198,3 +198,50 @@ describe("computeSafeToSpend", () => {
     expect(result.plannedSavingsInvestmentsCents).toBe(0);
   });
 });
+
+// #89's guarantee, proven on the heartbeat itself: a windfall deposit in
+// the feed never bounds a Pay Period and never inflates Safe-to-Spend —
+// only confirmed-stream paychecks carry income into the math.
+describe("bonus deposits are absent from Safe-to-Spend math", () => {
+  it("a windfall on payday adds nothing to the period's paycheck", () => {
+    const feed = [
+      deposit("2026-06-19", 250_000, "ACME CORP DES:PAYROLL"),
+      deposit("2026-07-03", 250_000, "ACME CORP DES:PAYROLL"),
+      // 0.6× of the paycheck, unknown merchant — a Bonus Moment's deposit.
+      deposit("2026-07-03", 150_000, "SPOT AWARD PAYOUT"),
+    ];
+    const paychecks = filterPaycheckDeposits(feed, STREAMS);
+    const period = deriveCurrentPayPeriod(paychecks, new Date("2026-07-05T00:00:00Z"));
+
+    // The windfall neither opens a boundary nor joins the payday's sum.
+    expect(period?.start.toISOString().slice(0, 10)).toBe("2026-07-03");
+    expect(period?.paycheckCents).toBe(250_000);
+
+    const withBonus = computeSafeToSpend(period!, [], {
+      savingsPercent: 10,
+      investmentsPercent: 10,
+    });
+    const withoutBonus = computeSafeToSpend(
+      deriveCurrentPayPeriod(
+        filterPaycheckDeposits(feed.slice(0, 2), STREAMS),
+        new Date("2026-07-05T00:00:00Z")
+      )!,
+      [],
+      { savingsPercent: 10, investmentsPercent: 10 }
+    );
+    expect(withBonus).toEqual(withoutBonus);
+  });
+
+  it("a windfall between paydays cannot open a Pay Period of its own", () => {
+    const paychecks = filterPaycheckDeposits(
+      [
+        deposit("2026-07-03", 250_000, "ACME CORP DES:PAYROLL"),
+        deposit("2026-07-10", 400_000, "RELOCATION GROSSUP LLC"),
+      ],
+      STREAMS
+    );
+    const period = deriveCurrentPayPeriod(paychecks, new Date("2026-07-12T00:00:00Z"));
+    expect(period?.start.toISOString().slice(0, 10)).toBe("2026-07-03");
+    expect(period?.paycheckCents).toBe(250_000);
+  });
+});

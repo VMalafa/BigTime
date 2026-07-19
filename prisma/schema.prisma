@@ -31,6 +31,8 @@ model User {
   moneyDates            MoneyDate[]
   goals                 Goal[]
   milestones            Milestone[]
+  bonusPlan             BonusPlan?
+  bonusMoments          BonusMoment[]
 }
 
 model Profile {
@@ -127,6 +129,10 @@ model BonusItem {
   frequency        BonusFrequency @default(ONE_TIME)
   expectedDate     DateTime?
   notes            String?
+  // Migration (#89): the standalone entry UI is retired; each pre-existing
+  // row surfaces once for confirm-or-dismiss. Null = not yet reviewed.
+  resolvedAt DateTime?
+  resolution BonusItemResolution?
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
 
@@ -138,6 +144,104 @@ enum BonusFrequency {
   QUARTERLY
   SEMI_ANNUAL
   ANNUAL
+}
+
+enum BonusItemResolution {
+  MIGRATED
+  DISMISSED
+}
+
+// --- Bonus Plan & Bonus Moment (#89, ratified in #63) --------------------
+
+// The household's standing, pre-committed windfall split (CONTEXT.md):
+// percentages over {target debt, Spotlight Goal, guilt-free}, decided
+// calmly in advance. One per household; 70/15/15 until the household says
+// otherwise. Must total 100 (enforced in the action layer).
+model BonusPlan {
+  id               String   @id @default(uuid())
+  userId           String   @unique
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  debtPercent      Int      @default(70)
+  goalPercent      Int      @default(15)
+  guiltFreePercent Int      @default(15)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+// The one-confirm windfall prompt (CONTEXT.md). Raised idempotently by
+// feed detection (feedTransactionId unique = the natural key), by the
+// manual fallback, or by BonusItem migration. Persisted for the future
+// past-river (#37). Bonus deposits never inflate Safe-to-Spend — the
+// heartbeat only counts confirmed-stream paychecks.
+model BonusMoment {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // The detected deposit; null for MANUAL/MIGRATED Moments.
+  feedTransactionId String?           @unique
+  source            BonusMomentSource @default(FEED)
+  description       String
+  postedAt          DateTime
+  amountCents       Int
+  status            BonusMomentStatus @default(RAISED)
+
+  // The confirmed split in real dollars — snapshotted at confirm so a
+  // later Bonus Plan edit never rewrites a decided Moment.
+  debtCents      Int?
+  goalCents      Int?
+  guiltFreeCents Int?
+
+  raisedAt  DateTime    @default(now())
+  decidedAt DateTime?
+  moves     BonusMove[]
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@index([userId, status])
+  @@index([userId, raisedAt])
+}
+
+enum BonusMomentSource {
+  FEED
+  MANUAL
+  MIGRATED
+}
+
+enum BonusMomentStatus {
+  RAISED
+  CONFIRMED
+  DISMISSED
+}
+
+// One concrete move from a confirmed Moment's split — planned → moved →
+// verified: the Transfer detector marks a move DONE when a matching feed
+// Transfer lands. Guilt-free needs no move; it stays where it landed.
+model BonusMove {
+  id          String          @id @default(uuid())
+  momentId    String
+  moment      BonusMoment     @relation(fields: [momentId], references: [id], onDelete: Cascade)
+  kind        BonusMoveKind
+  // Where the money is headed, in the household's words ("Hawaii").
+  label       String
+  amountCents Int
+  status      BonusMoveStatus @default(PLANNED)
+  // The matched Transfer leg, once the feed shows the money moved.
+  matchedTransactionId String?
+  matchedAt            DateTime?
+  createdAt            DateTime  @default(now())
+
+  @@index([momentId])
+}
+
+enum BonusMoveKind {
+  DEBT
+  GOAL
+}
+
+enum BonusMoveStatus {
+  PLANNED
+  DONE
 }
 
 model SpendingPlan {

@@ -101,9 +101,17 @@ export default async function globalSetup() {
     await prisma.calendarSource.deleteMany({ where: { userId: authUserId } });
     // Inbound email ledger (#69) — fresh per run.
     await prisma.inboundEmail.deleteMany({ where: { userId: authUserId } });
+    // Calendar feed tokens (#66) — fresh per run; accumulated tokens from
+    // earlier runs otherwise shadow the one the feed smoke mints.
+    await prisma.calendarFeedToken.deleteMany({ where: { userId: authUserId } });
     // Goals & Milestones (#86) — fresh per run.
     await prisma.milestone.deleteMany({ where: { userId: authUserId } });
     await prisma.goal.deleteMany({ where: { userId: authUserId } });
+    // Bonus Plan & Moments (#89) — fresh per run (moves cascade); one
+    // unresolved legacy BonusItem is reseeded below for the migration spec.
+    await prisma.bonusMoment.deleteMany({ where: { userId: authUserId } });
+    await prisma.bonusPlan.deleteMany({ where: { userId: authUserId } });
+    await prisma.bonusItem.deleteMany({ where: { profileId: PROFILE_ID } });
     // Money Dates (#81) — fresh per run; one CheckIn row stands as the
     // ritual's read-only pre-history.
     await prisma.moneyDate.deleteMany({ where: { userId: authUserId } });
@@ -248,6 +256,12 @@ export default async function globalSetup() {
       // windows, so earmarks/proposals never see a pattern).
       { id: "e2e-spending-ins0", accountId: CHECKING_ID, externalId: "e2e-ins0", postedAt: monthDay(-13, 6), amount: -1285, description: "ACME INSURANCE ANNUAL PREMIUM", cspBucket: "UNCATEGORIZED" as const, isTransfer: false, transferPairId: null },
       { id: "e2e-spending-ins1", accountId: CHECKING_ID, externalId: "e2e-ins1", postedAt: monthDay(-1, 6), amount: -1285, description: "ACME INSURANCE ANNUAL PREMIUM", cspBucket: "UNCATEGORIZED" as const, isTransfer: false, transferPairId: null },
+      // Bonus Moment detection (#89), against the confirmed timeline
+      // stream's $1,500 typical paycheck: a 0.6× unknown one-off deposit
+      // (must raise exactly one Moment) and a 0.27× one (must stay
+      // silent). Past month only, so current-month assertions hold.
+      { id: "e2e-spending-bonus", accountId: CHECKING_ID, externalId: "e2e-bonus", postedAt: monthDay(-1, 20), amount: 900, description: "E2E SPOT BONUS PAYOUT", cspBucket: "UNCATEGORIZED" as const, isTransfer: false, transferPairId: null },
+      { id: "e2e-spending-rebate", accountId: CHECKING_ID, externalId: "e2e-rebate", postedAt: monthDay(-1, 22), amount: 400, description: "E2E SMALL REBATE", cspBucket: "UNCATEGORIZED" as const, isTransfer: false, transferPairId: null },
       // Semi-monthly paycheck-like deposit stream (1st & 15th, past months
       // only) for the Income Proposal path: $2,750 × 2/mo -> $5,500/mo.
       ...[-3, -2, -1].flatMap((offset, i) => [
@@ -342,6 +356,19 @@ export default async function globalSetup() {
         },
       });
     }
+    // One pre-#89 BonusItem, unresolved, for the one-time migration card:
+    // $2,000 gross at 35% -> ~$1,300 net if brought in as a Moment.
+    await prisma.bonusItem.create({
+      data: {
+        id: "e2e-spending-legacy-bonus",
+        profileId: PROFILE_ID,
+        name: "E2E Legacy Retention Bonus",
+        grossAmount: 2000,
+        estimatedTaxRate: 35,
+        frequency: "ONE_TIME",
+      },
+    });
+
     await prisma.fixedCostLineItem.create({
       data: {
         id: "e2e-timeline-utility",

@@ -11,12 +11,9 @@ import { useAuth } from "@/lib/hooks/useAuth";
 import type { BonusEntry, IncomeEntry } from "@/lib/store/flow-store";
 import { createEntityCache } from "@/lib/hooks/entity-cache";
 import {
-  addBonusItem,
   addIncomeSource,
   getIncomeData,
-  removeBonusItem,
   removeIncomeSource,
-  type BonusItemInput,
   type IncomeSourceInput,
 } from "@/app/actions/income";
 import { generateId } from "@/lib/utils/validation";
@@ -84,70 +81,21 @@ export function useIncomeData() {
     return true;
   }
 
-  async function addBonus(input: BonusItemInput): Promise<boolean> {
-    setError(null);
-    const previous = incomeCache.get();
-    const tempId = generateId();
-    incomeCache.set((s) => ({
-      ...s,
-      bonusItems: [...s.bonusItems, { id: tempId, ...input }],
-    }));
-
-    const result = await addBonusItem(input);
-    if ("error" in result) {
-      incomeCache.set(previous);
-      setError(result.error);
-      return false;
-    }
-    incomeCache.set((s) => ({
-      ...s,
-      bonusItems: s.bonusItems.map((b) =>
-        b.id === tempId ? result.bonusItem : b
-      ),
-    }));
-    return true;
-  }
-
-  async function removeBonus(id: string): Promise<boolean> {
-    setError(null);
-    const previous = incomeCache.get();
-    incomeCache.set((s) => ({
-      ...s,
-      bonusItems: s.bonusItems.filter((b) => b.id !== id),
-    }));
-
-    const result = await removeBonusItem(id);
-    if (result.error) {
-      incomeCache.set(previous);
-      setError(result.error);
-      return false;
-    }
-    return true;
-  }
-
   const totalMonthlyIncome = incomeSources.reduce(
     (sum, s) => sum + s.monthlyAmount,
     0
   );
-  const totalAnnualBonusNet = bonusItems.reduce((sum, b) => {
-    const net = b.grossAmount * (1 - b.estimatedTaxRate / 100);
-    const perYear =
-      b.frequency === "QUARTERLY" ? 4 : b.frequency === "SEMI_ANNUAL" ? 2 : 1;
-    return sum + net * perYear;
-  }, 0);
-  const monthlyBonusEquivalent = totalAnnualBonusNet / 12;
 
+  // The standalone bonus ledger is retired (#89): windfalls are Bonus
+  // Moments now, raised by the feed (or the manual fallback) and decided
+  // once. bonusItems remain readable for surfaces that still reference
+  // pre-migration rows; the mutations are gone.
   return {
     incomeSources,
     bonusItems,
     error,
     addIncome,
     removeIncome,
-    addBonus,
-    removeBonus,
     totalMonthlyIncome,
-    totalAnnualBonusNet,
-    monthlyBonusEquivalent,
-    effectiveMonthlyIncome: totalMonthlyIncome + monthlyBonusEquivalent,
   };
 }

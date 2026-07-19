@@ -27,6 +27,7 @@ import {
   detectAndListMilestones,
   type MilestoneData,
 } from "@/app/actions/goals";
+import { getBonusGlance, type BonusGlance } from "@/app/actions/bonus";
 
 export interface HomeTruth {
   heartbeat: HeartbeatData;
@@ -44,6 +45,10 @@ export interface HomeTruth {
   moneyDate: MoneyDateSummary | null;
   /** One celebration at a time (#86): the oldest RAISED Milestone. */
   milestone: MilestoneData | null;
+  /** The one-confirm windfall (#89): oldest raised Moment + the quiet
+   * unmatched-move line. Detection and Transfer-verification run inside
+   * this read, idempotently. */
+  bonus: BonusGlance | null;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -141,6 +146,10 @@ export async function getHomeTruth(): Promise<HomeTruth | null> {
   // shows one celebration at a time, oldest first.
   const milestones = await detectAndListMilestones();
 
+  // Windfall detection + move verification (#89): same idempotent
+  // detection-on-read shape — the deposit id is the natural key.
+  const bonus = await getBonusGlance();
+
   return {
     heartbeat,
     weather,
@@ -150,5 +159,6 @@ export async function getHomeTruth(): Promise<HomeTruth | null> {
     tomorrowIso: tomorrowUtc.toISOString().slice(0, 10),
     moneyDate,
     milestone: milestones[0] ?? null,
+    bonus,
   };
 }

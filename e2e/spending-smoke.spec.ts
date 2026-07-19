@@ -114,6 +114,11 @@ test("spending page: plan vs actual, honest chip, Transfers excluded", async ({
 test("linked path: confidence-tiered Proposals on fixed-costs and debts steps", async ({
   page,
 }) => {
+  // The closing heartbeat wait reload-polls the one-truth Home read —
+  // pace it generously (the read grew again with #86 and #89) instead of
+  // letting the 90s default starve the final poll.
+  test.setTimeout(240_000);
+
   await page.goto("/auth/login");
   await page.getByLabel("Email").fill(E2E_SPENDING_EMAIL);
   await page.getByLabel("Password").fill(e2eSpendingPassword());
@@ -215,11 +220,13 @@ test("linked path: confidence-tiered Proposals on fixed-costs and debts steps", 
     // "Pay Period <Mon> <day>".
     // Each attempt reloads (aborting the in-flight one-read), so the
     // inner wait must outlast a full getHomeTruth round trip on the
-    // pooled single connection (#79 made Home's read heavier).
+    // pooled single connection (#79 made Home's read heavier; #86 and
+    // #89 heavier still — an aborted read's zombie query chain also
+    // queues ahead of the next attempt).
     await expect(page.getByText(/Pay Period [A-Z]/)).toBeVisible({
-      timeout: 12_000,
+      timeout: 20_000,
     });
-  }).toPass({ timeout: 60_000 });
+  }).toPass({ timeout: 120_000 });
   await expect(page.getByText("Safe-to-Spend")).toBeVisible();
   await expect(page.getByText(/paycheck −/)).toBeVisible();
 });

@@ -20,6 +20,7 @@ import {
 } from "@/lib/setup/client-cache";
 import { SafeToSpendCard } from "@/components/dashboard/SafeToSpendCard";
 import { TodayStrip } from "@/components/dashboard/TodayStrip";
+import { BonusMomentCard } from "@/components/dashboard/BonusMomentCard";
 import type { WeatherState } from "@/lib/heartbeat/weather";
 
 const WEATHER_STYLE: Record<WeatherState, { dot: string; text: string }> = {
@@ -36,9 +37,14 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
-      getHomeTruth().then((data) => setTruth(data));
-      // Shared per-page-load cache: the walk banner's read answers this too.
-      getSetupStateCached().then((data) => setSetup(data));
+      // Sequential on purpose: the one-truth read is a long chain on a
+      // single pooled connection (#79) — a concurrent second request only
+      // starves the pool and risks P2024 on whichever loses.
+      getHomeTruth()
+        .then((data) => setTruth(data))
+        // Shared per-page-load cache: the walk banner's read answers this too.
+        .then(() => getSetupStateCached())
+        .then((data) => setSetup(data));
     }
   }, [isAuthenticated, authLoading]);
 
@@ -196,6 +202,29 @@ export default function DashboardPage() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* The one-confirm windfall (#89): the Bonus Plan applied to real
+          dollars — one calm decision, oldest Moment first. */}
+      {truth?.bonus?.moment && (
+        <BonusMomentCard
+          // Keyed by Moment: the next windfall must mount fresh — the
+          // previous card's optimistic-hidden state dies with its Moment.
+          key={truth.bonus.moment.id}
+          moment={truth.bonus.moment}
+          onDecided={() => getHomeTruth().then((data) => setTruth(data))}
+        />
+      )}
+
+      {/* Planned → moved, gently (#89): one line after ~7 quiet days,
+          never a nag. */}
+      {truth?.bonus?.reminder && (
+        <p
+          data-bonus-reminder
+          className="mb-4 text-center text-xs font-sans text-text-secondary"
+        >
+          {truth.bonus.reminder}
+        </p>
       )}
 
       {/* The quiet payday banner (#81): a raised Date waits without

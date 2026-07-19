@@ -1,25 +1,23 @@
 "use client";
 
+// The income surface. The standalone bonus ledger is retired (#89): a
+// bonus is a Bonus Moment now — detected from the feed, or recorded here
+// when the feed missed it — and never smoothed into monthly income, so
+// the plan runs on real paychecks only (windfalls never inflate
+// Safe-to-Spend). Pre-#89 BonusItem rows surface once for migration.
+
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { useIncomeData } from "@/lib/hooks/useIncomeData";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { IncomeEntryForm } from "@/components/flow/IncomeEntryForm";
-import { BonusEntryForm } from "@/components/flow/BonusEntryForm";
+import { BonusFallback } from "@/components/dashboard/BonusFallback";
 import { IncomeProposalsPanel } from "@/components/proposals/IncomeProposalsPanel";
 import { formatCurrency } from "@/lib/utils/format";
 
 export default function IncomeDashboardPage() {
-  const {
-    incomeSources,
-    bonusItems,
-    totalMonthlyIncome: monthlyIncome,
-    monthlyBonusEquivalent: monthlyBonus,
-    totalAnnualBonusNet: annualBonus,
-    effectiveMonthlyIncome: effectiveMonthly,
-  } = useIncomeData();
-  const bonusCount = bonusItems.length;
+  const { incomeSources, totalMonthlyIncome: monthlyIncome } = useIncomeData();
   const incomeCount = incomeSources.length;
 
   return (
@@ -33,13 +31,14 @@ export default function IncomeDashboardPage() {
         Income Planning
       </motion.h1>
       <p className="text-text-secondary font-sans text-sm mb-6">
-        Track regular income and large bonus payouts. Bonuses get smoothed into
-        a monthly equivalent so your plan stays realistic.
+        Track regular income here. Windfalls arrive as one-confirm Bonus
+        Moments — split by your Bonus Plan, never counted as spending room.
       </p>
 
-      {/* Summary strip */}
+      {/* Summary strip: real repeating income only — bonus money is a
+          Moment, not a monthly average. */}
       <Card padding="lg" className="mb-8 border-l-4 border-l-accent-gold">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <p className="text-xs text-text-secondary font-sans">
               Regular monthly
@@ -48,31 +47,21 @@ export default function IncomeDashboardPage() {
               {formatCurrency(monthlyIncome)}
             </p>
             <p className="text-xs text-text-secondary font-sans mt-0.5">
-              {incomeCount} source{incomeCount !== 1 ? "s" : ""}
+              {incomeCount} source{incomeCount !== 1 ? "s" : ""} · drives your
+              spending plan
             </p>
           </div>
           <div>
-            <p className="text-xs text-text-secondary font-sans">
-              Bonus monthly avg. (net)
+            <p className="text-xs text-text-secondary font-sans">Windfalls</p>
+            <p className="font-sans text-sm text-text-primary mt-2">
+              Decided one Moment at a time, on your standing split.
             </p>
-            <p className="font-serif text-2xl text-text-primary mt-1">
-              {formatCurrency(monthlyBonus)}
-            </p>
-            <p className="text-xs text-text-secondary font-sans mt-0.5">
-              {bonusCount} bonus{bonusCount !== 1 ? "es" : ""} ·{" "}
-              {formatCurrency(annualBonus)}/yr net
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-text-secondary font-sans">
-              Effective monthly
-            </p>
-            <p className="font-serif text-2xl text-accent-gold mt-1">
-              {formatCurrency(effectiveMonthly)}
-            </p>
-            <p className="text-xs text-text-secondary font-sans mt-0.5">
-              Drives your spending plan
-            </p>
+            <Link
+              href="/dashboard/spending-plan"
+              className="text-xs font-sans text-accent-gold hover:underline mt-0.5 inline-block"
+            >
+              Review the Bonus Plan →
+            </Link>
           </div>
         </div>
       </Card>
@@ -97,13 +86,14 @@ export default function IncomeDashboardPage() {
 
         <section>
           <h2 className="font-serif text-xl text-text-primary mb-1">
-            Bonuses &amp; Incentives
+            Bonuses &amp; Windfalls
           </h2>
           <p className="text-text-secondary text-sm font-sans mb-4">
-            Performance bonuses, profit share, sales commissions. Enter the
-            gross amount — we&apos;ll estimate net after taxes.
+            Linked accounts raise these on their own. If one landed somewhere
+            the feed can&apos;t see, record it here — it becomes the same
+            one-confirm Moment.
           </p>
-          <BonusEntryForm />
+          <BonusFallback />
         </section>
       </div>
 

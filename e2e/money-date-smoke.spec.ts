@@ -54,17 +54,18 @@ test("payday raises the Date; travel shift moves it; timeline reads moved-not-sk
   await expect(movedMoment).toBeVisible({ timeout: 20_000 });
 });
 
-test("seven cards (first of month) to kept in ≤10 taps; archive holds the Date and the Check-In pre-history", async ({
+test("eight cards (first of month, Moment month) to kept in ≤11 taps; archive holds the Date and the Check-In pre-history", async ({
   page,
 }) => {
   await page.goto("/dashboard/money-date");
 
   // Card 1: Weather recap — a real state word, live-derived. The fixture
   // Date is the month's first (rows reseed every run), so the deep agenda
-  // (#82) joins: 7 cards, "1 of 7".
+  // (#82) joins — and the fixture's windfalls make this a Moment month,
+  // so the Bonus Plan tune-up (#89) rides too: 8 cards, "1 of 8".
   const first = page.locator("[data-date-card='weather']");
   await expect(first).toBeVisible({ timeout: 20_000 });
-  await expect(first).toContainText("1 of 7");
+  await expect(first).toContainText("1 of 8");
   await expect(first.getByRole("heading")).toHaveText(
     /Steady|Watch|Attention/
   );
@@ -106,16 +107,26 @@ test("seven cards (first of month) to kept in ≤10 taps; archive holds the Date
   await audit.getByRole("button", { name: "investigate" }).first().click(); // tap 6
   await audit.getByRole("button", { name: "Next", exact: true }).click(); // tap 7
 
+  // Deep card 4 (#89): the Bonus Plan tune-up — present because a Moment
+  // fired this month (the fixture's seeded windfalls). A nod and a Next.
+  const bonus = page.locator("[data-date-card='bonus']");
+  await expect(bonus).toBeVisible();
+  await expect(bonus).toContainText("windfall landed this month");
+  await expect(
+    bonus.getByRole("link", { name: /talk this through/ })
+  ).toHaveAttribute("href", /partner\/counselor\?topic=/);
+  await bonus.getByRole("button", { name: /Looks right — Next/ }).click(); // tap 8
+
   // Closing card: always the Goal — the real Spotlight (goals-smoke ran
   // earlier in the suite and left E2E Hawaii spotlighted).
   const goal = page.locator("[data-date-card='goal']");
   await expect(goal).toBeVisible();
   await expect(goal).toContainText("E2E Hawaii");
   await expect(goal).toContainText("% funded");
-  await goal.getByRole("button", { name: "Finish the Date" }).click(); // tap 8
+  await goal.getByRole("button", { name: "Finish the Date" }).click(); // tap 9
 
   // Finish: the chosen investigation is the one next action; default
-  // present chip stands → kept. Tap 9 of ≤10.
+  // present chip stands → kept. Tap 10 of ≤11.
   await expect(
     page.getByText(/Investigate Netflix Com/).first()
   ).toBeVisible();
