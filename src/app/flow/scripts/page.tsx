@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useFlowStore } from "@/lib/store/flow-store";
 import { useReflection } from "@/lib/hooks/useReflection";
 import { saveMoneyScript } from "@/app/actions/reflection";
 import { MONEY_SCRIPTS } from "@/lib/constants/money-scripts";
@@ -13,7 +12,6 @@ import { ScriptPrompt } from "@/components/flow/ScriptPrompt";
 export default function ScriptsPage() {
   const router = useRouter();
   const { scripts, setScriptLocal: setScript } = useReflection();
-  const setCurrentStep = useFlowStore((s) => s.setCurrentStep);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   // Server-authoritative (#52): keystrokes stay local; the per-intent save
@@ -32,7 +30,6 @@ export default function ScriptsPage() {
   const canContinue = filledCount >= 3;
 
   const handleNext = () => {
-    setCurrentStep(1);
     router.push("/flow/money-type");
   };
 

@@ -12,6 +12,11 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { getHomeTruth, type HomeTruth } from "@/app/actions/home";
+import { dismissSideQuest, type SetupState } from "@/app/actions/setup";
+import {
+  getSetupStateCached,
+  invalidateSetupState,
+} from "@/lib/setup/client-cache";
 import { SafeToSpendCard } from "@/components/dashboard/SafeToSpendCard";
 import { TodayStrip } from "@/components/dashboard/TodayStrip";
 import type { WeatherState } from "@/lib/heartbeat/weather";
@@ -25,12 +30,31 @@ const WEATHER_STYLE: Record<WeatherState, { dot: string; text: string }> = {
 export default function DashboardPage() {
   const { isAuthenticated, loading: authLoading } = useAuth();
   const [truth, setTruth] = useState<HomeTruth | null>(null);
+  const [setup, setSetup] = useState<SetupState | null>(null);
+  const [questHidden, setQuestHidden] = useState(false);
 
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
       getHomeTruth().then((data) => setTruth(data));
+      // Shared per-page-load cache: the walk banner's read answers this too.
+      getSetupStateCached().then((data) => setSetup(data));
     }
   }, [isAuthenticated, authLoading]);
+
+  // Dismiss-forever (#73): optimistic hide, rollback if the server says no.
+  async function handleDismissQuest() {
+    setQuestHidden(true);
+    const result = await dismissSideQuest();
+    if (result.error) {
+      setQuestHidden(false);
+    } else {
+      invalidateSetupState();
+    }
+  }
+
+  const showSideQuest =
+    setup?.complete === true && !setup.sideQuestDismissed && !questHidden;
+  const showLinkNudge = setup !== null && !setup.hasLinkedAccount;
 
   const weather = truth?.weather ?? null;
   const style = weather ? WEATHER_STYLE[weather.state] : null;
@@ -122,6 +146,51 @@ export default function DashboardPage() {
           Monthly Check-In →
         </Link>
       </div>
+
+      {/* Quiet persistent nudge (#73): one flow, two fuels — manual is the
+          fallback, and linking stays one tap away until it happens. */}
+      {showLinkNudge && (
+        <p className="text-center text-xs font-sans text-text-secondary mb-4">
+          Running on manual entries.{" "}
+          <Link
+            href="/settings/connections"
+            className="text-accent-gold hover:underline"
+          >
+            Link your accounts
+          </Link>{" "}
+          and balances stay current on their own.
+        </p>
+      )}
+
+      {/* The "know yourselves" side-quest (#73): offered once, post-setup,
+          dismissible forever (it moves to Settings). Never inside setup,
+          never nagging. */}
+      {showSideQuest && (
+        <div
+          data-side-quest
+          className="mb-6 rounded-xl border border-bg-secondary bg-white px-4 py-3"
+        >
+          <p className="text-sm font-sans text-text-primary">
+            When you have 20 calm minutes: the know-yourselves pair — your
+            Money Scripts and Money Type.
+          </p>
+          <div className="mt-2 flex items-center gap-4">
+            <Link
+              href="/flow/scripts"
+              className="text-sm font-sans font-medium text-accent-gold hover:underline"
+            >
+              Start the side-quest →
+            </Link>
+            <button
+              type="button"
+              onClick={handleDismissQuest}
+              className="text-xs font-sans text-text-secondary hover:text-text-primary transition-colors"
+            >
+              Not now — don&apos;t ask again
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

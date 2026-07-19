@@ -40,7 +40,7 @@ const planAreas: PlanArea[] = [
   {
     title: "Fixed Costs",
     description: "The bills that repeat — housing, utilities, subscriptions.",
-    href: "/flow/fixed-costs",
+    href: "/dashboard/fixed-costs",
     icon: (
       <svg width="24" height="24" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
         <rect x="3" y="3" width="14" height="14" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
@@ -51,7 +51,7 @@ const planAreas: PlanArea[] = [
   {
     title: "Conscious Spending Plan",
     description: "The four buckets — where each dollar is meant to go.",
-    href: "/flow/spending-plan",
+    href: "/dashboard/spending-plan",
     icon: (
       <svg width="24" height="24" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
         <circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.5" />
@@ -62,7 +62,7 @@ const planAreas: PlanArea[] = [
   {
     title: "Money Dials",
     description: "What you love spending on — turn it up, cut the rest.",
-    href: "/flow/money-dials",
+    href: "/dashboard/money-dials",
     icon: (
       <svg width="24" height="24" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
         <circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.5" />

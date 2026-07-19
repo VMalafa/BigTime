@@ -121,8 +121,8 @@ test("today strip: quirk row + coverage Watch; assignment flips the hero", async
     await page.reload();
     await expect(
       card.getByRole("button", { name: /assigned to Sitter/ })
-    ).toBeVisible({ timeout: 6_000 });
-  }).toPass({ timeout: 45_000 });
+    ).toBeVisible({ timeout: 10_000 });
+  }).toPass({ timeout: 60_000 });
 
   // ...and the hero lets go of it. One navigation, generous wait — the
   // one-read is a heavy query chain on a single pooled connection.

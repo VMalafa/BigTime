@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useFlowStore } from "@/lib/store/flow-store";
 import { useReflection } from "@/lib/hooks/useReflection";
 import { saveMoneyType } from "@/app/actions/reflection";
 import { MONEY_TYPES, type MoneyTypeKey } from "@/lib/constants/money-types";
@@ -14,7 +13,6 @@ import type { MoneyType } from "@/lib/store/flow-store";
 export default function MoneyTypePage() {
   const router = useRouter();
   const { moneyType, setMoneyTypeLocal } = useReflection();
-  const setCurrentStep = useFlowStore((s) => s.setCurrentStep);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   // Server-authoritative (#52): selection is an awaited per-intent action
@@ -30,15 +28,12 @@ export default function MoneyTypePage() {
     }
   }
 
+  // The side-quest ends here (#73): back to the daily truth.
   const handleNext = () => {
-    setCurrentStep(2);
-    // Onboarding fork: link accounts (the feed drafts Proposals) or type it
-    // in (the unchanged manual path).
-    router.push("/flow/link-accounts");
+    router.push("/dashboard");
   };
 
   const handleBack = () => {
-    setCurrentStep(0);
     router.push("/flow/scripts");
   };
 
@@ -68,6 +63,7 @@ export default function MoneyTypePage() {
       <FlowNavigation
         onBack={handleBack}
         onNext={handleNext}
+        nextLabel="Done"
         nextDisabled={moneyType === null}
       />
     </StepWrapper>

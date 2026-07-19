@@ -73,8 +73,11 @@ test("nav renders the four tabs; Plan reaches its sub-views; unlinked routes res
 
   // --- Automation is reachable from Settings, which launches from Home.
   await page.goto("/dashboard");
-  await page.getByRole("link", { name: "Settings" }).click();
-  await expect(page).toHaveURL(/\/dashboard\/settings/);
+  // A click during hydration can be swallowed — retry until it commits.
+  await expect(async () => {
+    await page.getByRole("link", { name: "Settings" }).click();
+    await expect(page).toHaveURL(/\/dashboard\/settings/, { timeout: 5_000 });
+  }).toPass({ timeout: 30_000 });
   await page.getByRole("link", { name: "Automation & Next Steps" }).click();
   await expect(page).toHaveURL(/\/dashboard\/automation/);
   await expect(

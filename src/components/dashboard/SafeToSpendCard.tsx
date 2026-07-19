@@ -43,9 +43,9 @@ export function SafeToSpendCard({ data }: { data: HeartbeatData | null }) {
           Safe-to-Spend
         </p>
         <p className="text-xs text-text-secondary font-sans">
-          Pay Period {dateLabel(data.periodStart!)} –{" "}
-          {dateLabel(data.periodEnd!)}
-          {data.projectedEnd ? " (next paycheck expected)" : ""}
+          {data.manualFuel
+            ? `This month, from your stated income`
+            : `Pay Period ${dateLabel(data.periodStart!)} – ${dateLabel(data.periodEnd!)}${data.projectedEnd ? " (next paycheck expected)" : ""}`}
         </p>
       </div>
       <p

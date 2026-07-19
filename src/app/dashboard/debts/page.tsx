@@ -5,6 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { type DebtEntry } from "@/lib/store/flow-store";
 import { useDebts } from "@/lib/hooks/useDebts";
 import { getMappedDebtCaptions } from "@/app/actions/aggregator";
+import { DebtEntryForm } from "@/components/flow/DebtEntryForm";
+import { DebtProposalsPanel } from "@/components/proposals/DebtProposalsPanel";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -262,8 +264,17 @@ export default function DebtsPage() {
         Debt Tracking
       </motion.h1>
       <p className="text-text-secondary font-sans text-sm mb-8">
-        Track your debts and watch the balances go down over time.
+        Track your debts and watch the balances go down over time. No
+        judgment — debt is a tool that sometimes needs restructuring.
       </p>
+
+      {/* One surface per entity (#73): the feed's Debt Proposals and the
+          manual entry form live here — the canonical page — not on a
+          parallel flow copy. */}
+      <div className="space-y-8 mb-8">
+        <DebtProposalsPanel />
+        <DebtEntryForm />
+      </div>
 
       {debts.length === 0 ? (
         <Card padding="lg">
@@ -272,21 +283,14 @@ export default function DebtsPage() {
               No debts tracked yet
             </p>
             <p className="text-text-secondary text-sm font-sans mb-4">
-              Complete the onboarding flow to add your debts, or use the
-              calculator to explore payoff strategies.
+              No debt? That&apos;s amazing. Or add one above — or explore
+              payoff strategies in the calculator.
             </p>
-            <div className="flex items-center justify-center gap-3">
-              <Link href="/flow">
-                <Button variant="primary" size="md">
-                  Start Flow
-                </Button>
-              </Link>
-              <Link href="/calculator">
-                <Button variant="secondary" size="md">
-                  Debt Calculator
-                </Button>
-              </Link>
-            </div>
+            <Link href="/calculator">
+              <Button variant="secondary" size="md">
+                Debt Calculator
+              </Button>
+            </Link>
           </div>
         </Card>
       ) : (

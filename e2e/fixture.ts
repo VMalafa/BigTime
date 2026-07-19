@@ -8,6 +8,11 @@ import path from "node:path";
 
 export const E2E_SPENDING_EMAIL = "e2e-spending@example.com";
 
+// The manual-fuel household (#73): a second fixture user with NO linked
+// feed and no data — reset every seeded run — so the One Flow's manual
+// path can be walked from a genuinely fresh state.
+export const E2E_MANUAL_EMAIL = "e2e-manual@example.com";
+
 /**
  * Minimal .env loader (values are set into process.env, never logged).
  * `next dev` loads .env itself; Playwright's own processes do not.
@@ -29,6 +34,14 @@ export function loadDotEnv(): void {
  * across runs on this machine, never committed, never printed.
  */
 export function e2eSpendingPassword(): string {
+  return derivePassword("e2e-spending-fixture");
+}
+
+export function e2eManualPassword(): string {
+  return derivePassword("e2e-manual-fixture");
+}
+
+function derivePassword(salt: string): string {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!serviceKey) {
     throw new Error(
@@ -38,7 +51,7 @@ export function e2eSpendingPassword(): string {
   return (
     "E2e!" +
     createHash("sha256")
-      .update(`${serviceKey}:e2e-spending-fixture`)
+      .update(`${serviceKey}:${salt}`)
       .digest("base64url")
       .slice(0, 24)
   );

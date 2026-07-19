@@ -1,14 +1,14 @@
 "use client";
 
+// The Conscious Spending Plan — the canonical surface (#73 retired the
+// /flow twin). Save is one awaited intent, enabled only at 100%.
+
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { StepWrapper } from "@/components/flow/StepWrapper";
-import { FlowNavigation } from "@/components/flow/FlowNavigation";
 import { CSPSliders } from "@/components/flow/CSPSliders";
 import { RealityCheckCard } from "@/components/flow/RealityCheckCard";
 import { Button } from "@/components/ui/Button";
-import { useFlowStore, type SpendingPlanData } from "@/lib/store/flow-store";
+import type { SpendingPlanData } from "@/lib/store/flow-store";
 import { useSpendingPlan } from "@/lib/hooks/useSpendingPlan";
 import { useIncomeData } from "@/lib/hooks/useIncomeData";
 import { CSP_RANGES } from "@/lib/constants/csp-ranges";
@@ -24,13 +24,10 @@ const DEFAULT_PLAN: SpendingPlanData = {
 };
 
 export default function SpendingPlanPage() {
-  const router = useRouter();
-  const setCurrentStep = useFlowStore((s) => s.setCurrentStep);
-  // Server-authoritative (#50): Continue awaits one save-the-plan intent —
-  // no debounced flush left to lose on a fast navigation.
   const { spendingPlan, savePlan, error: saveError } = useSpendingPlan();
   const { totalMonthlyIncome: totalIncome } = useIncomeData();
   const [isSaving, setIsSaving] = useState(false);
+  const [savedAt, setSavedAt] = useState<number | null>(null);
 
   const totalFixedCosts = (spendingPlan?.fixedCostLineItems ?? []).reduce(
     (sum, i) => sum + i.monthlyAmount,
@@ -52,11 +49,9 @@ export default function SpendingPlanPage() {
     fixedCostsPercent: seededFixedCosts,
   });
 
-  // "Adjust state while rendering" pattern: if the user returns to Fixed
-  // Costs, edits line items, and comes back without having overridden the
-  // slider, keep local state in sync with the refreshed suggested value.
-  // Using this pattern instead of useEffect avoids the cascading-render
-  // lint/perf warning from setState-in-effect.
+  // "Adjust state while rendering" pattern: if the user edits line items on
+  // Fixed Costs and comes back without having overridden the slider, keep
+  // local state in sync with the refreshed suggested value.
   // https://react.dev/reference/react/useState#storing-information-from-previous-renders
   const [lastSeenSuggested, setLastSeenSuggested] = useState(
     suggestedFixedCostsPercent
@@ -94,10 +89,12 @@ export default function SpendingPlanPage() {
         next = { ...next, fixedCostsOverridden: true };
       }
     }
+    setSavedAt(null);
     setValues(next);
   }
 
   function handleResetToSuggested() {
+    setSavedAt(null);
     setValues((prev) => ({
       ...prev,
       fixedCostsPercent: suggestedFixedCostsPercent,
@@ -134,6 +131,7 @@ export default function SpendingPlanPage() {
       100 - values.fixedCostsPercent - savings - investments
     );
 
+    setSavedAt(null);
     setValues({
       ...values,
       savingsPercent: savings,
@@ -142,7 +140,7 @@ export default function SpendingPlanPage() {
     });
   }
 
-  async function handleNext() {
+  async function handleSave() {
     setIsSaving(true);
     const saved = await savePlan({
       fixedCostsPercent: values.fixedCostsPercent,
@@ -152,20 +150,24 @@ export default function SpendingPlanPage() {
       fixedCostsOverridden: values.fixedCostsOverridden,
     });
     setIsSaving(false);
-    if (!saved) return;
-    setCurrentStep(5);
-    router.push("/flow/money-dials");
-  }
-
-  function handleBack() {
-    router.push("/flow/fixed-costs");
+    if (saved) setSavedAt(Date.now());
   }
 
   return (
-    <StepWrapper
-      title="Your Conscious Spending Plan"
-      subtitle="Ramit Sethi's system: allocate every dollar with intention, not restriction."
-    >
+    <div className="max-w-2xl mx-auto">
+      <motion.h1
+        className="font-serif text-3xl text-text-primary mb-2"
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+      >
+        Conscious Spending Plan
+      </motion.h1>
+      <p className="text-text-secondary font-sans text-sm mb-8">
+        Allocate every dollar with intention, not restriction. The four
+        buckets must total 100%.
+      </p>
+
       <div className="space-y-8">
         <RealityCheckCard
           totalIncome={totalIncome}
@@ -185,11 +187,7 @@ export default function SpendingPlanPage() {
                 {formatPercent(suggestedFixedCostsPercent)}
               </span>
             </p>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleResetToSuggested}
-            >
+            <Button variant="ghost" size="sm" onClick={handleResetToSuggested}>
               Reset to suggested
             </Button>
           </motion.div>
@@ -233,19 +231,25 @@ export default function SpendingPlanPage() {
         )}
 
         {saveError && (
-          <p role="alert" className="text-sm text-red-600 font-sans">
+          <p role="alert" className="text-sm text-error font-sans">
             {saveError}
           </p>
         )}
 
-        <FlowNavigation
-          onBack={handleBack}
-          onNext={handleNext}
-          nextLabel={isSaving ? "Saving…" : "Continue"}
-          nextDisabled={total !== 100 || isSaving}
-          showBack
-        />
+        <div className="flex items-center gap-3">
+          <Button
+            onClick={handleSave}
+            disabled={total !== 100 || isSaving}
+          >
+            {isSaving ? "Saving…" : "Save plan"}
+          </Button>
+          {savedAt !== null && (
+            <span className="text-sm font-sans text-success" role="status">
+              Plan saved.
+            </span>
+          )}
+        </div>
       </div>
-    </StepWrapper>
+    </div>
   );
 }

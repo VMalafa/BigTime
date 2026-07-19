@@ -4,6 +4,7 @@ import { type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
+import { SetupWalkBanner } from "@/components/setup/SetupWalkBanner";
 
 interface NavItem {
   label: string;
@@ -118,6 +119,10 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       {/* Main content */}
       <main className="flex-1 md:ml-64 bg-bg-primary min-h-screen pb-20 md:pb-0">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {/* The One Flow (#73): a thin guided layer over these canonical
+              pages while setup is incomplete; gone once Safe-to-Spend
+              computes. */}
+          <SetupWalkBanner />
           {children}
         </div>
       </main>
