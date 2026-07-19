@@ -17,7 +17,17 @@ import {
   matchesPersonFilter,
   type ExtraAssignee,
 } from "@/lib/timeline/assignee";
-import { assignEventPerson } from "@/app/actions/events";
+import {
+  assignEventPerson,
+  dismissEvent,
+  markRenewalHandled,
+} from "@/app/actions/events";
+import {
+  isRenewalEvent,
+  pickLoudRenewal,
+  renewalDetail,
+  renewalState,
+} from "@/lib/renewals/radar";
 import { Button } from "@/components/ui/Button";
 
 export interface TimelineEventItem {
@@ -35,6 +45,8 @@ export interface TimelineEventItem {
   profileId: string | null;
   profileName: string | null;
   assigneeExtra: ExtraAssignee | null;
+  /** Renewal radar (#70): set = this renewal is handled and quiet. */
+  handledAt: string | null;
 }
 
 /** The assignable slice of an Event — server truth or optimistic override. */
@@ -104,12 +116,15 @@ export function TimelineStream({
   sources,
   people,
   rhythmNote,
+  todayIso,
 }: {
   events: TimelineEventItem[];
   moments: MoneyMoment[];
   sources: TimelineFilterSource[];
   people: TimelinePerson[];
   rhythmNote: string | null;
+  /** Date-only ISO — injected so renewal lead-time state stays pure. */
+  todayIso: string;
 }) {
   // Chip state: everything on by default; a chip toggles its slice out.
   const [mutedCategories, setMutedCategories] = useState<Set<string>>(
@@ -175,8 +190,55 @@ export function TimelineStream({
     });
   }
 
+  // Renewal radar (#70): optimistic handled/dismissed sets + the
+  // no-stacking loud pick — exactly one escalated renewal goes loud.
+  const [renewalHandled, setRenewalHandled] = useState<Set<string>>(new Set());
+  const [renewalDismissed, setRenewalDismissed] = useState<Set<string>>(
+    new Set()
+  );
+
+  const renewalInput = (e: TimelineEventItem) => ({
+    id: e.id,
+    date: e.date,
+    category: e.category,
+    handledAt: renewalHandled.has(e.id)
+      ? new Date().toISOString()
+      : e.handledAt,
+  });
+
+  const visibleForRadar = events.filter((e) => !renewalDismissed.has(e.id));
+  const loudRenewalId = pickLoudRenewal(
+    visibleForRadar.map(renewalInput),
+    todayIso
+  );
+
+  async function actOnRenewal(id: string, act: "done" | "dismiss") {
+    if (act === "done") {
+      setRenewalHandled((current) => new Set(current).add(id));
+      const result = await markRenewalHandled(id);
+      if (result.error) {
+        setRenewalHandled((current) => {
+          const next = new Set(current);
+          next.delete(id);
+          return next;
+        });
+      }
+    } else {
+      setRenewalDismissed((current) => new Set(current).add(id));
+      const result = await dismissEvent(id);
+      if (result.error) {
+        setRenewalDismissed((current) => {
+          const next = new Set(current);
+          next.delete(id);
+          return next;
+        });
+      }
+    }
+  }
+
   const rows: Row[] = [
     ...events
+      .filter((e) => !renewalDismissed.has(e.id))
       .filter(
         (e) => !mutedCategories.has(categoryKey(e.sourceId, e.category))
       )
@@ -374,12 +436,36 @@ export function TimelineStream({
             {monthTitle(`${monthKey}-01`)}
           </h2>
           <div className="space-y-2">
-            {group.map((row, index) =>
-              row.type === "event" ? (
+            {group.map((row, index) => {
+              if (row.type !== "event") return renderMoment(row, index);
+              // Renewal lead-time styling (#70): loud only for the single
+              // picked escalated renewal; upcoming reads as a quiet tint.
+              const rState = isRenewalEvent(row.event)
+                ? renewalState(renewalInput(row.event), todayIso)
+                : null;
+              const loud =
+                rState === "ESCALATED" && loudRenewalId === row.event.id;
+              const rDetail = rState
+                ? renewalDetail(renewalInput(row.event), todayIso)
+                : null;
+              return (
                 <div
                   key={row.event.id}
                   data-timeline-kind="event"
-                  className="flex gap-3 rounded-lg bg-white border border-bg-secondary px-4 py-3"
+                  data-renewal-state={
+                    rState
+                      ? loud
+                        ? "escalated-loud"
+                        : rState.toLowerCase()
+                      : undefined
+                  }
+                  className={`flex gap-3 rounded-lg border px-4 py-3 ${
+                    loud
+                      ? "border-warning bg-warning/10"
+                      : rState === "UPCOMING" || rState === "ESCALATED"
+                        ? "border-accent-gold/40 bg-accent-gold/5"
+                        : "bg-white border-bg-secondary"
+                  }`}
                 >
                   <input
                     type="checkbox"
@@ -490,46 +576,84 @@ export function TimelineStream({
                         </span>
                       )}
                     </div>
-                  </div>
-                </div>
-              ) : (
-                <div
-                  key={`${row.moment.kind}-${row.moment.date}-${index}`}
-                  data-timeline-kind={row.moment.kind.toLowerCase()}
-                  className={`flex gap-3 rounded-lg border px-4 py-3 ${
-                    row.moment.kind === "EARMARK_DUE" &&
-                    row.moment.funded === false
-                      ? "border-warning bg-warning/10"
-                      : "border-accent-gold/30 bg-accent-gold/5"
-                  }`}
-                >
-                  <div className="w-28 shrink-0 text-sm font-sans text-text-secondary pt-0.5">
-                    {formatRange(row.moment.date, null)}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="font-sans text-sm font-medium text-text-primary">
-                      {row.moment.title}
-                      {row.moment.amountCents !== undefined
-                        ? ` · ${formatCents(row.moment.amountCents)}`
-                        : ""}
-                    </p>
-                    {row.moment.detail && (
-                      <p className="text-xs text-text-secondary font-sans">
-                        {row.moment.detail}
+                    {/* Renewal lead-time line (#70): the escalated loud
+                        card carries the one next action; everything else
+                        stays a quiet caption. */}
+                    {rDetail && (
+                      <p
+                        className={`text-xs font-sans mt-1 ${
+                          loud
+                            ? "font-medium text-warning"
+                            : "text-text-secondary"
+                        }`}
+                      >
+                        {rDetail}
                       </p>
                     )}
-                    {row.moment.nextAction && (
-                      <p className="text-xs font-sans font-medium text-warning mt-1">
-                        → {row.moment.nextAction}
-                      </p>
+                    {loud && (
+                      <div className="mt-1.5 flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => actOnRenewal(row.event.id, "done")}
+                          className="rounded-full border border-warning bg-white px-3 py-0.5 text-xs font-sans font-medium text-text-primary hover:bg-warning/10 transition-colors"
+                        >
+                          Done
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => actOnRenewal(row.event.id, "dismiss")}
+                          className="rounded-full border border-bg-secondary bg-white px-3 py-0.5 text-xs font-sans text-text-secondary hover:border-error/60 transition-colors"
+                        >
+                          Dismiss
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
-              )
-            )}
+              );
+            })}
           </div>
         </section>
       ))}
     </div>
   );
+
+  function renderMoment(
+    row: Extract<Row, { type: "moment" }>,
+    index: number
+  ) {
+    return (
+      <div
+        key={`${row.moment.kind}-${row.moment.date}-${index}`}
+        data-timeline-kind={row.moment.kind.toLowerCase()}
+        className={`flex gap-3 rounded-lg border px-4 py-3 ${
+          row.moment.kind === "EARMARK_DUE" && row.moment.funded === false
+            ? "border-warning bg-warning/10"
+            : "border-accent-gold/30 bg-accent-gold/5"
+        }`}
+      >
+        <div className="w-28 shrink-0 text-sm font-sans text-text-secondary pt-0.5">
+          {formatRange(row.moment.date, null)}
+        </div>
+        <div className="min-w-0">
+          <p className="font-sans text-sm font-medium text-text-primary">
+            {row.moment.title}
+            {row.moment.amountCents !== undefined
+              ? ` · ${formatCents(row.moment.amountCents)}`
+              : ""}
+          </p>
+          {row.moment.detail && (
+            <p className="text-xs text-text-secondary font-sans">
+              {row.moment.detail}
+            </p>
+          )}
+          {row.moment.nextAction && (
+            <p className="text-xs font-sans font-medium text-warning mt-1">
+              → {row.moment.nextAction}
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
 }

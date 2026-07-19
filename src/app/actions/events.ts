@@ -233,7 +233,8 @@ export async function assignEventPerson(
 
 /**
  * Dismiss a draft: the row is kept (status DISMISSED) so a re-import never
- * re-raises it — the ProposalDecision spirit.
+ * re-raises it — the ProposalDecision spirit. Also the renewal radar's
+ * "Dismiss" (#70): a dismissed renewal leaves the timeline for good.
  */
 export async function dismissEvent(
   eventId: string
@@ -246,6 +247,27 @@ export async function dismissEvent(
     data: { status: "DISMISSED" },
   });
   if (updated.count === 0) return { error: "Event not found." };
+  revalidatePath("/dashboard/calendar");
+  revalidatePath("/dashboard/timeline");
+  return { ok: true };
+}
+
+/**
+ * Renewal radar (#70): "Done" — mark a renewal handled; it quiets
+ * immediately and stays on the timeline as settled rhythm.
+ */
+export async function markRenewalHandled(
+  eventId: string
+): Promise<{ ok?: boolean; error?: string }> {
+  const userId = await getAuthedUserId();
+  if (!userId) return { error: "Not signed in." };
+
+  const updated = await prisma.event.updateMany({
+    where: { id: eventId, calendarSource: { userId } },
+    data: { handledAt: new Date() },
+  });
+  if (updated.count === 0) return { error: "Event not found." };
+  revalidatePath("/dashboard/timeline");
   revalidatePath("/dashboard/calendar");
   return { ok: true };
 }

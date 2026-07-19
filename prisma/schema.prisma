@@ -452,6 +452,7 @@ enum CalendarSourceKind {
   IMPORT_ICS
   MANUAL
   EMAIL_FORWARD
+  FEED_DERIVED
 }
 
 // DRAFT -> CONFIRMED on ratification; DISMISSED rows are kept so a
@@ -565,6 +566,9 @@ model Event {
   // fake Profile. Mutually exclusive with profileId (the actions enforce
   // it); both null = unassigned.
   assigneeExtra    EventAssigneeExtra?
+  // Renewal radar (#70): a handled renewal quiets immediately; null on
+  // everything else.
+  handledAt        DateTime?
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
 

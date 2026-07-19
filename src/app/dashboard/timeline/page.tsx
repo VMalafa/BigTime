@@ -137,6 +137,7 @@ export default async function TimelinePage() {
     profileId: event.profile?.id ?? null,
     profileName: event.profile?.name ?? null,
     assigneeExtra: event.assigneeExtra,
+    handledAt: event.handledAt ? event.handledAt.toISOString() : null,
   }));
 
   const filterSources: TimelineFilterSource[] = sources
@@ -172,6 +173,7 @@ export default async function TimelinePage() {
         sources={filterSources}
         people={people}
         rhythmNote={rhythmNote}
+        todayIso={todayUtc.toISOString().slice(0, 10)}
       />
     </div>
   );

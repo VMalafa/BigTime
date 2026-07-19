@@ -50,6 +50,7 @@ const CADENCE_GAP_DAYS: Record<string, number> = {
   SEMI_MONTHLY: 15,
   MONTHLY: 30,
   QUARTERLY: 91,
+  SEMI_ANNUAL: 183,
   ANNUAL: 365,
 };
 

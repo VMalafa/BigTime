@@ -17,6 +17,7 @@ const MONTHS_PER_CADENCE: Record<Cadence, number> = {
   SEMI_MONTHLY: 2,
   MONTHLY: 1,
   QUARTERLY: 1 / 3,
+  SEMI_ANNUAL: 1 / 6,
   ANNUAL: 1 / 12,
 };
 
