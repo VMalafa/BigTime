@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { detectRecurringPatterns } from "@/lib/recurring/pattern-engine";
 import { filterPaycheckDeposits } from "@/lib/heartbeat/pay-period";
 import { deriveMoneyMoments } from "@/lib/timeline/money-moments";
+import { applyMoneyDateOverrides } from "@/lib/money-date/beats";
 import {
   TimelineStream,
   type TimelineEventItem,
@@ -107,7 +108,14 @@ export default async function TimelinePage() {
     planRows.find((p) => p.isDefault)?.spendingPlan ??
     planRows.find((p) => p.spendingPlan)?.spendingPlan ??
     null;
-  const moments = deriveMoneyMoments({
+  // Moved is never skipped (#81): real Money Date rows override their
+  // projected payday moments.
+  const moneyDates = await prisma.moneyDate.findMany({
+    where: { userId: user.id },
+    select: { periodStart: true, status: true, scheduledFor: true },
+  });
+
+  const derivedMoments = deriveMoneyMoments({
     paychecks,
     chargePatterns,
     lineItems: (plan?.fixedCostLineItems ?? []).map((item) => ({
@@ -123,6 +131,16 @@ export default async function TimelinePage() {
     now,
     horizonDays: HORIZON_DAYS,
   });
+  const moments = applyMoneyDateOverrides(
+    derivedMoments,
+    moneyDates.map((d) => ({
+      periodStart: d.periodStart.toISOString().slice(0, 10),
+      status: d.status,
+      scheduledFor: d.scheduledFor
+        ? d.scheduledFor.toISOString().slice(0, 10)
+        : null,
+    }))
+  );
 
   const eventItems: TimelineEventItem[] = events.map((event) => ({
     id: event.id,

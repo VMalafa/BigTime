@@ -19,6 +19,10 @@ import {
   type TodayStripRow,
 } from "@/lib/timeline/today-strip";
 import { monthKeyFor, monthRange } from "@/lib/spending/month-summary";
+import {
+  ensureMoneyDateRaised,
+  type MoneyDateSummary,
+} from "@/app/actions/money-date";
 
 export interface HomeTruth {
   heartbeat: HeartbeatData;
@@ -31,6 +35,9 @@ export interface HomeTruth {
   /** Date-only ISO for today/tomorrow — the strip labels carry the date. */
   todayIso: string;
   tomorrowIso: string;
+  /** The current Pay Period's Money Date (#81), raised idempotently by
+   * paycheck detection; null on manual fuel or before the heartbeat. */
+  moneyDate: MoneyDateSummary | null;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -120,6 +127,10 @@ export async function getHomeTruth(): Promise<HomeTruth | null> {
     today: todayIso,
   });
 
+  // Paycheck detection raises the Date (#81) — idempotent on periodStart,
+  // reusing this read's heartbeat (never computed twice per glance).
+  const moneyDate = await ensureMoneyDateRaised(user.id, heartbeat);
+
   return {
     heartbeat,
     weather,
@@ -127,5 +138,6 @@ export async function getHomeTruth(): Promise<HomeTruth | null> {
     strip: strip.rows,
     todayIso,
     tomorrowIso: tomorrowUtc.toISOString().slice(0, 10),
+    moneyDate,
   };
 }

@@ -101,6 +101,24 @@ export default async function globalSetup() {
     await prisma.calendarSource.deleteMany({ where: { userId: authUserId } });
     // Inbound email ledger (#69) — fresh per run.
     await prisma.inboundEmail.deleteMany({ where: { userId: authUserId } });
+    // Money Dates (#81) — fresh per run; one CheckIn row stands as the
+    // ritual's read-only pre-history.
+    await prisma.moneyDate.deleteMany({ where: { userId: authUserId } });
+    await prisma.checkIn.upsert({
+      where: {
+        userId_month: {
+          userId: authUserId,
+          month: new Date(Date.UTC(2026, 4, 1)),
+        },
+      },
+      update: {},
+      create: {
+        userId: authUserId,
+        month: new Date(Date.UTC(2026, 4, 1)),
+        wentWell: "E2E pre-history: stayed under on groceries.",
+        feltHard: "E2E pre-history: the surprise car bill.",
+      },
+    });
 
     await prisma.user.upsert({
       where: { id: authUserId },

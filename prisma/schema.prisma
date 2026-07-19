@@ -28,6 +28,7 @@ model User {
   calendarSources       CalendarSource[]
   calendarFeedTokens    CalendarFeedToken[]
   inboundEmails         InboundEmail[]
+  moneyDates            MoneyDate[]
 }
 
 model Profile {
@@ -579,6 +580,38 @@ model Event {
 enum EventAssigneeExtra {
   SITTER
   EXTENDED_DAY
+}
+
+// The Money Date (#81, ratified in #62): raised by paycheck detection,
+// one row per Pay Period start. Moved is never skipped — completing a
+// RESCHEDULED Date still counts as kept. Beats snapshot what the couple
+// actually saw (the cards derive live; the archive remembers).
+model MoneyDate {
+  id           String          @id @default(uuid())
+  userId       String
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // The Pay Period's opening payday — the natural key that makes raising
+  // idempotent.
+  periodStart  DateTime        @db.Date
+  status       MoneyDateStatus @default(RAISED)
+  // Reschedule target ("our next shared evening"); null until moved.
+  scheduledFor DateTime?       @db.Date
+  completedAt  DateTime?
+  // Who was there, in the household's own words.
+  presentNames String[]
+  // Snapshot of the four beats as shown at completion.
+  beats        Json?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@unique([userId, periodStart])
+  @@index([userId, completedAt])
+}
+
+enum MoneyDateStatus {
+  RAISED
+  RESCHEDULED
+  COMPLETED
 }
 
 model CheckIn {
