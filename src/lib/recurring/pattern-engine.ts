@@ -14,6 +14,7 @@ export type Cadence =
   | "SEMI_MONTHLY"
   | "MONTHLY"
   | "QUARTERLY"
+  | "SEMI_ANNUAL"
   | "ANNUAL";
 
 export interface RecurringTransactionInput {
@@ -71,6 +72,7 @@ const CADENCE_SPECS: CadenceSpec[] = [
   { cadence: "BIWEEKLY", expectedGapDays: 14, minGapDays: 12, maxGapDays: 17, fullCount: 5, minOccurrences: 3 },
   { cadence: "MONTHLY", expectedGapDays: 30.4, minGapDays: 26, maxGapDays: 35, fullCount: 4, minOccurrences: 3 },
   { cadence: "QUARTERLY", expectedGapDays: 91.3, minGapDays: 80, maxGapDays: 105, fullCount: 3, minOccurrences: 3 },
+  { cadence: "SEMI_ANNUAL", expectedGapDays: 182.6, minGapDays: 160, maxGapDays: 210, fullCount: 3, minOccurrences: 2 },
   { cadence: "ANNUAL", expectedGapDays: 365.25, minGapDays: 330, maxGapDays: 400, fullCount: 2, minOccurrences: 2 },
 ];
 

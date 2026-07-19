@@ -218,6 +218,11 @@ export default async function globalSetup() {
         { id: `e2e-spending-nf${i}`, accountId: CHECKING_ID, externalId: `e2e-nf${i}`, postedAt: monthDay(offset, 12), amount: -15.49, description: "NETFLIX.COM 866-579-7172", cspBucket: "UNCATEGORIZED" as const, isTransfer: false, transferPairId: null },
         { id: `e2e-spending-rent${i}`, accountId: CHECKING_ID, externalId: `e2e-rent${i}`, postedAt: monthDay(offset, 3), amount: -1800, description: "OAKWOOD APARTMENTS RENT", cspBucket: "UNCATEGORIZED" as const, isTransfer: false, transferPairId: null },
       ]),
+      // Renewal radar (#70): an annual insurance charge, two occurrences a
+      // year apart (past months only, single occurrence inside the 180-day
+      // windows, so earmarks/proposals never see a pattern).
+      { id: "e2e-spending-ins0", accountId: CHECKING_ID, externalId: "e2e-ins0", postedAt: monthDay(-13, 6), amount: -1285, description: "ACME INSURANCE ANNUAL PREMIUM", cspBucket: "UNCATEGORIZED" as const, isTransfer: false, transferPairId: null },
+      { id: "e2e-spending-ins1", accountId: CHECKING_ID, externalId: "e2e-ins1", postedAt: monthDay(-1, 6), amount: -1285, description: "ACME INSURANCE ANNUAL PREMIUM", cspBucket: "UNCATEGORIZED" as const, isTransfer: false, transferPairId: null },
       // Semi-monthly paycheck-like deposit stream (1st & 15th, past months
       // only) for the Income Proposal path: $2,750 × 2/mo -> $5,500/mo.
       ...[-3, -2, -1].flatMap((offset, i) => [
@@ -412,6 +417,26 @@ export default async function globalSetup() {
     await prisma.user.update({
       where: { id: authUserId },
       data: { sideQuestDismissedAt: null },
+    });
+
+    // Renewal radar styling states (#70): confirmed renewals at 5, 6, and
+    // 20 days out — escalated (loud, soonest only), escalated (quiet — no
+    // stacking), and upcoming.
+    await prisma.calendarSource.create({
+      data: {
+        id: "e2e-renewal-source",
+        userId: authUserId,
+        name: "Feed-derived",
+        kind: "FEED_DERIVED",
+        categories: ["renewal"],
+        events: {
+          create: [
+            { ...schoolEvent(5, "E2E Insurance Renewal", "renewal", "CONFIRMED", 128500) },
+            { ...schoolEvent(6, "E2E Second Renewal", "renewal", "CONFIRMED") },
+            { ...schoolEvent(20, "E2E Warranty Renewal", "renewal", "CONFIRMED") },
+          ],
+        },
+      },
     });
 
   } finally {

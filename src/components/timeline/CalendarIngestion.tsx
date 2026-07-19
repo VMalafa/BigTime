@@ -33,7 +33,7 @@ export interface SerializedEvent {
 export interface SerializedSource {
   id: string;
   name: string;
-  kind: "IMPORT_PHOTO" | "IMPORT_ICS" | "MANUAL" | "EMAIL_FORWARD";
+  kind: "IMPORT_PHOTO" | "IMPORT_ICS" | "MANUAL" | "EMAIL_FORWARD" | "FEED_DERIVED";
   sourceStamp: string | null;
   categories: string[];
   events: SerializedEvent[];
@@ -213,7 +213,9 @@ export function CalendarIngestion({ sources }: { sources: SerializedSource[] }) 
                   ? "Entered by hand"
                   : source.kind === "EMAIL_FORWARD"
                     ? "From forwarded email"
-                    : "Imported calendar"}
+                    : source.kind === "FEED_DERIVED"
+                      ? "Derived from your linked accounts"
+                      : "Imported calendar"}
                 {source.sourceStamp ? ` · ${source.sourceStamp}` : ""}
                 {dismissedCount > 0
                   ? ` · ${dismissedCount} dismissed (won't be raised again)`
