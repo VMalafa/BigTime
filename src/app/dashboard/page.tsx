@@ -13,6 +13,7 @@ import { motion } from "framer-motion";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { getHomeTruth, type HomeTruth } from "@/app/actions/home";
 import { dismissSideQuest, type SetupState } from "@/app/actions/setup";
+import { decideMilestone } from "@/app/actions/goals";
 import {
   getSetupStateCached,
   invalidateSetupState,
@@ -55,6 +56,19 @@ export default function DashboardPage() {
   const showSideQuest =
     setup?.complete === true && !setup.sideQuestDismissed && !questHidden;
   const showLinkNudge = setup !== null && !setup.hasLinkedAccount;
+  const [milestoneHidden, setMilestoneHidden] = useState(false);
+
+  // One-time celebration (#86): accept or dismiss, optimistic + rollback;
+  // never re-raised either way.
+  async function handleMilestone(decision: "ACCEPTED" | "DISMISSED") {
+    if (!truth?.milestone) return;
+    setMilestoneHidden(true);
+    const result = await decideMilestone({
+      id: truth.milestone.id,
+      decision,
+    });
+    if (result.error) setMilestoneHidden(false);
+  }
 
   const weather = truth?.weather ?? null;
   const style = weather ? WEATHER_STYLE[weather.state] : null;
@@ -147,6 +161,42 @@ export default function DashboardPage() {
           Money Date →
         </Link>
       </div>
+
+      {/* The one-time celebration prompt (#86): celebratory, never a nag —
+          one Milestone at a time, gone forever once decided. */}
+      {truth?.milestone && !milestoneHidden && (
+        <div
+          data-milestone-prompt
+          className="mb-4 rounded-xl border border-accent-gold/50 bg-accent-gold/10 px-4 py-3 text-center"
+        >
+          <p className="text-sm font-sans font-medium text-text-primary">
+            🎉 {truth.milestone.title}
+          </p>
+          {truth.milestone.detail && (
+            <p className="text-xs font-sans text-text-secondary mt-0.5">
+              {truth.milestone.detail}
+            </p>
+          )}
+          <div className="mt-2 flex items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => handleMilestone("ACCEPTED")}
+              className="rounded-full bg-text-primary px-4 py-1 text-xs font-sans font-medium text-white hover:bg-text-primary/90 transition-colors"
+            >
+              Celebrate it — $
+              {Math.round(truth.milestone.celebrationBudgetCents / 100)} of
+              guilt-free
+            </button>
+            <button
+              type="button"
+              onClick={() => handleMilestone("DISMISSED")}
+              className="text-xs font-sans text-text-secondary hover:text-text-primary transition-colors"
+            >
+              Not this one
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* The quiet payday banner (#81): a raised Date waits without
           nagging; a moved one says where it went. */}

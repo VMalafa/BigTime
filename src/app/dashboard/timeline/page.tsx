@@ -5,6 +5,7 @@ import { detectRecurringPatterns } from "@/lib/recurring/pattern-engine";
 import { filterPaycheckDeposits } from "@/lib/heartbeat/pay-period";
 import { deriveMoneyMoments } from "@/lib/timeline/money-moments";
 import { applyMoneyDateOverrides } from "@/lib/money-date/beats";
+import { goalHorizonLabel } from "@/lib/goals/engine";
 import {
   TimelineStream,
   type TimelineEventItem,
@@ -108,6 +109,26 @@ export default async function TimelinePage() {
     planRows.find((p) => p.isDefault)?.spendingPlan ??
     planRows.find((p) => p.spendingPlan)?.spendingPlan ??
     null;
+  // The river always ends on the goal (#86): the Spotlight at the horizon.
+  const spotlightGoal = await prisma.goal.findFirst({
+    where: { userId: user.id, isSpotlight: true },
+    include: { linkedAccount: { select: { currentBalance: true } } },
+  });
+  const horizon = spotlightGoal
+    ? goalHorizonLabel({
+        id: spotlightGoal.id,
+        name: spotlightGoal.name,
+        emoji: spotlightGoal.emoji,
+        targetCents: spotlightGoal.targetCents,
+        linkedBalanceCents: spotlightGoal.linkedAccount
+          ? Math.round(Number(spotlightGoal.linkedAccount.currentBalance) * 100)
+          : null,
+        manualCents: spotlightGoal.manualCents,
+        isSpotlight: true,
+        sliceCents: spotlightGoal.sliceCents,
+      })
+    : null;
+
   // Moved is never skipped (#81): real Money Date rows override their
   // projected payday moments.
   const moneyDates = await prisma.moneyDate.findMany({
@@ -192,6 +213,7 @@ export default async function TimelinePage() {
         people={people}
         rhythmNote={rhythmNote}
         todayIso={todayUtc.toISOString().slice(0, 10)}
+        horizon={horizon}
       />
     </div>
   );

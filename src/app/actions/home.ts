@@ -23,6 +23,10 @@ import {
   ensureMoneyDateRaised,
   type MoneyDateSummary,
 } from "@/app/actions/money-date";
+import {
+  detectAndListMilestones,
+  type MilestoneData,
+} from "@/app/actions/goals";
 
 export interface HomeTruth {
   heartbeat: HeartbeatData;
@@ -38,6 +42,8 @@ export interface HomeTruth {
   /** The current Pay Period's Money Date (#81), raised idempotently by
    * paycheck detection; null on manual fuel or before the heartbeat. */
   moneyDate: MoneyDateSummary | null;
+  /** One celebration at a time (#86): the oldest RAISED Milestone. */
+  milestone: MilestoneData | null;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -131,6 +137,10 @@ export async function getHomeTruth(): Promise<HomeTruth | null> {
   // reusing this read's heartbeat (never computed twice per glance).
   const moneyDate = await ensureMoneyDateRaised(user.id, heartbeat);
 
+  // Milestone detection (#86): idempotent by natural key; the glance
+  // shows one celebration at a time, oldest first.
+  const milestones = await detectAndListMilestones();
+
   return {
     heartbeat,
     weather,
@@ -139,5 +149,6 @@ export async function getHomeTruth(): Promise<HomeTruth | null> {
     todayIso,
     tomorrowIso: tomorrowUtc.toISOString().slice(0, 10),
     moneyDate,
+    milestone: milestones[0] ?? null,
   };
 }

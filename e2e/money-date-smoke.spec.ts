@@ -106,10 +106,12 @@ test("seven cards (first of month) to kept in ≤10 taps; archive holds the Date
   await audit.getByRole("button", { name: "investigate" }).first().click(); // tap 6
   await audit.getByRole("button", { name: "Next", exact: true }).click(); // tap 7
 
-  // Closing card: always the Goal — the invitation, never an error.
+  // Closing card: always the Goal — the real Spotlight (goals-smoke ran
+  // earlier in the suite and left E2E Hawaii spotlighted).
   const goal = page.locator("[data-date-card='goal']");
   await expect(goal).toBeVisible();
-  await expect(goal).toContainText("Pick the goal this is all for");
+  await expect(goal).toContainText("E2E Hawaii");
+  await expect(goal).toContainText("% funded");
   await goal.getByRole("button", { name: "Finish the Date" }).click(); // tap 8
 
   // Finish: the chosen investigation is the one next action; default

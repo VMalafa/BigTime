@@ -101,6 +101,9 @@ export default async function globalSetup() {
     await prisma.calendarSource.deleteMany({ where: { userId: authUserId } });
     // Inbound email ledger (#69) — fresh per run.
     await prisma.inboundEmail.deleteMany({ where: { userId: authUserId } });
+    // Goals & Milestones (#86) — fresh per run.
+    await prisma.milestone.deleteMany({ where: { userId: authUserId } });
+    await prisma.goal.deleteMany({ where: { userId: authUserId } });
     // Money Dates (#81) — fresh per run; one CheckIn row stands as the
     // ritual's read-only pre-history.
     await prisma.moneyDate.deleteMany({ where: { userId: authUserId } });
@@ -198,6 +201,10 @@ export default async function globalSetup() {
     for (const account of [
       { id: CHECKING_ID, externalId: "e2e-checking", name: "E2E Checking", accountType: "CHECKING" as const, balance: 4200 },
       { id: CARD_ID, externalId: "e2e-card", name: "E2E Card", accountType: "CREDIT_CARD" as const, balance: -350 },
+      // Goals v1 (#86): a savings account for the 1:1 Goal link — its
+      // feed balance owns the Spotlight's progress (3400 of a 10k target
+      // → 34% funded, deterministic).
+      { id: "e2e-spending-savings", externalId: "e2e-savings", name: "E2E Savings", accountType: "SAVINGS" as const, balance: 3400 },
     ]) {
       await prisma.linkedAccount.upsert({
         where: { id: account.id },

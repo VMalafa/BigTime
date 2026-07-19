@@ -21,6 +21,7 @@ import {
   computeDialShares,
   DIAL_DRIFT_MIN_TRANSACTIONS,
 } from "@/lib/spending/dial-drift";
+import { goalPercentFunded, goalProgressCents } from "@/lib/goals/engine";
 import { detectRecurringPatterns } from "@/lib/recurring/pattern-engine";
 import type { SpendingPlanData } from "@/lib/store/flow-store";
 import { getSpendingPlanData } from "@/app/actions/spending-plan";
@@ -93,8 +94,19 @@ export interface MoneyDateDeep {
   subscriptions: SubscriptionAuditRow[];
 }
 
+export interface SpotlightGoalCard {
+  name: string;
+  emoji: string | null;
+  percentFunded: number;
+  progressCents: number;
+  targetCents: number;
+  sliceCents: number;
+}
+
 export interface MoneyDateTruth {
   current: MoneyDateSummary | null;
+  /** The closing card's dream (#86); null keeps the invitation. */
+  spotlightGoal: SpotlightGoalCard | null;
   beats: MoneyDateBeats | null;
   /** The monthly depth (#82): present on the first Date of the month. */
   deep: MoneyDateDeep | null;
@@ -242,8 +254,38 @@ export async function getMoneyDateTruth(): Promise<MoneyDateTruth | null> {
     }
   }
 
+  const spotlightRow = await prisma.goal.findFirst({
+    where: { userId, isSpotlight: true },
+    include: { linkedAccount: { select: { currentBalance: true } } },
+  });
+  const spotlightGoal = spotlightRow
+    ? (() => {
+        const input = {
+          id: spotlightRow.id,
+          name: spotlightRow.name,
+          emoji: spotlightRow.emoji,
+          targetCents: spotlightRow.targetCents,
+          linkedBalanceCents: spotlightRow.linkedAccount
+            ? Math.round(Number(spotlightRow.linkedAccount.currentBalance) * 100)
+            : null,
+          manualCents: spotlightRow.manualCents,
+          isSpotlight: true,
+          sliceCents: spotlightRow.sliceCents,
+        };
+        return {
+          name: spotlightRow.name,
+          emoji: spotlightRow.emoji,
+          percentFunded: goalPercentFunded(input),
+          progressCents: goalProgressCents(input),
+          targetCents: spotlightRow.targetCents,
+          sliceCents: spotlightRow.sliceCents,
+        };
+      })()
+    : null;
+
   return {
     current,
+    spotlightGoal,
     beats: {
       weather,
       insight: deriveDateInsight(summary),
