@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { CounselorChat } from "@/components/partner/CounselorChat";
 import { usePartnerStore } from "@/lib/store/partner-store";
@@ -12,10 +13,23 @@ interface ChatMessage {
 }
 
 export default function CounselorPage() {
+  return (
+    <Suspense>
+      <CounselorPageInner />
+    </Suspense>
+  );
+}
+
+function CounselorPageInner() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const { partnerMoneyType } = usePartnerStore();
   const { moneyType } = useReflection();
+  // Counselor on call (#82): a deep Money Date card's door arrives with
+  // that card's context, opening the conversation already scoped.
+  const searchParams = useSearchParams();
+  const topic = searchParams.get("topic");
+  const openedWithTopic = useRef(false);
 
   const handleSend = async (content: string) => {
     const userMessage: ChatMessage = { role: "user", content };
@@ -63,6 +77,15 @@ export default function CounselorPage() {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (topic && !openedWithTopic.current && messages.length === 0) {
+      openedWithTopic.current = true;
+      void handleSend(topic);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fire once on
+    // arrival; handleSend identity churns per render.
+  }, [topic]);
 
   return (
     <div className="min-h-screen bg-bg-primary">

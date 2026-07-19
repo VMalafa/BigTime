@@ -11,6 +11,20 @@ import { getHeartbeat, type HeartbeatData } from "@/app/actions/heartbeat";
 import { computeWeather, type WeatherReading } from "@/lib/heartbeat/weather";
 import { deriveDateInsight } from "@/lib/money-date/beats";
 import {
+  buildDialDriftReview,
+  buildSubscriptionAudit,
+  isFirstDateOfMonth,
+  type DialDriftReview,
+  type SubscriptionAuditRow,
+} from "@/lib/money-date/deep";
+import {
+  computeDialShares,
+  DIAL_DRIFT_MIN_TRANSACTIONS,
+} from "@/lib/spending/dial-drift";
+import { detectRecurringPatterns } from "@/lib/recurring/pattern-engine";
+import type { SpendingPlanData } from "@/lib/store/flow-store";
+import { getSpendingPlanData } from "@/app/actions/spending-plan";
+import {
   monthKeyFor,
   monthRange,
   shiftMonthKey,
@@ -73,9 +87,17 @@ export interface MoneyDateBeats {
   action: string;
 }
 
+export interface MoneyDateDeep {
+  dialDrift: DialDriftReview;
+  plan: SpendingPlanData | null;
+  subscriptions: SubscriptionAuditRow[];
+}
+
 export interface MoneyDateTruth {
   current: MoneyDateSummary | null;
   beats: MoneyDateBeats | null;
+  /** The monthly depth (#82): present on the first Date of the month. */
+  deep: MoneyDateDeep | null;
   archive: MoneyDateSummary[];
   /** Monthly Check-In rows, imported read-only as the ritual's
    * pre-history (#62) — nothing the household wrote is lost. */
@@ -104,7 +126,12 @@ export async function getMoneyDateTruth(): Promise<MoneyDateTruth | null> {
           linkedAccount: { connection: { userId } },
           postedAt: { gte: start, lt: endExclusive },
         },
-        select: { amount: true, cspBucket: true, isTransfer: true },
+        select: {
+          amount: true,
+          cspBucket: true,
+          isTransfer: true,
+          moneyDial: true,
+        },
       }),
       prisma.spendingPlan.findFirst({
         where: { profile: { userId, isDefault: true } },
@@ -151,6 +178,70 @@ export async function getMoneyDateTruth(): Promise<MoneyDateTruth | null> {
     0
   );
 
+  // The monthly depth (#82): the first Date of the calendar month runs
+  // seven cards. Deep data is only assembled when it will be shown.
+  let deep: MoneyDateDeep | null = null;
+  if (current && current.status !== "COMPLETED") {
+    const monthMates = await prisma.moneyDate.findMany({
+      where: { userId },
+      select: { periodStart: true },
+    });
+    const firstOfMonth = isFirstDateOfMonth(
+      current.periodStart,
+      monthMates.map((m) => m.periodStart.toISOString().slice(0, 10))
+    );
+    if (firstOfMonth) {
+      const AUDIT_LOOKBACK_MS = 200 * 24 * 60 * 60 * 1000;
+      const [dials, plan, auditTransactions] = await Promise.all([
+        prisma.moneyDial.findMany({
+          where: { profile: { userId } },
+          select: { category: true, level: true },
+        }),
+        getSpendingPlanData(),
+        prisma.feedTransaction.findMany({
+          where: {
+            linkedAccount: { connection: { userId } },
+            postedAt: { gte: new Date(now.getTime() - AUDIT_LOOKBACK_MS) },
+            isTransfer: false,
+            amount: { lt: 0 },
+          },
+          select: {
+            id: true,
+            postedAt: true,
+            amount: true,
+            description: true,
+          },
+        }),
+      ]);
+
+      const guiltFree = transactions
+        .filter((t) => !t.isTransfer && t.cspBucket === "GUILT_FREE")
+        .map((t) => ({
+          amountCents: Math.round(Number(t.amount) * 100),
+          moneyDial: t.moneyDial,
+        }));
+      const patterns = detectRecurringPatterns(
+        auditTransactions.map((t) => ({
+          id: t.id,
+          postedAt: t.postedAt,
+          amountCents: Math.round(Number(t.amount) * 100),
+          description: t.description,
+          isTransfer: false,
+        }))
+      );
+
+      deep = {
+        dialDrift: buildDialDriftReview(
+          dials.map((d) => ({ category: d.category, level: d.level })),
+          computeDialShares(guiltFree),
+          DIAL_DRIFT_MIN_TRANSACTIONS
+        ),
+        plan,
+        subscriptions: buildSubscriptionAudit(patterns),
+      };
+    }
+  }
+
   return {
     current,
     beats: {
@@ -160,6 +251,7 @@ export async function getMoneyDateTruth(): Promise<MoneyDateTruth | null> {
         ? `${weather.action.label}`
         : "Nothing needs you — enjoy it.",
     },
+    deep,
     archive: archiveRows.map((row) => ({
       id: row.id,
       periodStart: row.periodStart.toISOString().slice(0, 10),

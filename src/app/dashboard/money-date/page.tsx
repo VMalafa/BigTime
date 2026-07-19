@@ -1,9 +1,10 @@
 "use client";
 
-// The Money Date (#81, ratified in #62): four guided cards, swiped in
-// order, together — Weather recap → one insight → one next action →
-// the Spotlight Goal, always last. Ten minutes, ≤10 taps, ending on the
-// dream. Everything derives live; the finish records the kept Date.
+// The Money Date (#81 + #82): four guided cards every payday — Weather
+// recap → one insight → one next action → the Goal, always last — and on
+// the FIRST Date of each calendar month, three deep cards join before
+// the close: Dial Drift, the CSP tune-up, and the subscription audit.
+// Patterns, not verdicts; every deep card carries the counselor door.
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -15,7 +16,11 @@ import {
   rescheduleMoneyDate,
   type MoneyDateTruth,
 } from "@/app/actions/money-date";
+import { saveSpendingPlan } from "@/app/actions/spending-plan";
+import { investigateAction } from "@/lib/money-date/deep";
+import { CSPSliders } from "@/components/flow/CSPSliders";
 import { Button } from "@/components/ui/Button";
+import type { SpendingPlanData } from "@/lib/store/flow-store";
 import type { WeatherState } from "@/lib/heartbeat/weather";
 
 const WEATHER_COLOR: Record<WeatherState, string> = {
@@ -26,6 +31,15 @@ const WEATHER_COLOR: Record<WeatherState, string> = {
 
 const PRESENT_CHOICES = ["Both of us", "Just me"];
 
+type CardKey =
+  | "weather"
+  | "insight"
+  | "action"
+  | "drift"
+  | "csp"
+  | "audit"
+  | "goal";
+
 function dateLabel(iso: string): string {
   return new Date(`${iso}T00:00:00.000Z`).toLocaleDateString("en-US", {
     weekday: "short",
@@ -33,6 +47,27 @@ function dateLabel(iso: string): string {
     day: "numeric",
     timeZone: "UTC",
   });
+}
+
+function dollars(cents: number): string {
+  return (cents / 100).toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: cents % 100 === 0 ? 0 : 2,
+  });
+}
+
+/** The quiet "talk this through?" door — the counselor scoped to this
+ * card's context, on call for exactly the beat that got hard (#62). */
+function CounselorDoor({ topic }: { topic: string }) {
+  return (
+    <Link
+      href={`/partner/counselor?topic=${encodeURIComponent(topic)}`}
+      className="mt-4 inline-block text-xs font-sans text-text-secondary underline underline-offset-4 hover:text-text-primary transition-colors"
+    >
+      talk this through? →
+    </Link>
+  );
 }
 
 export default function MoneyDatePage() {
@@ -43,9 +78,18 @@ export default function MoneyDatePage() {
   const [finishing, setFinishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rescheduleTo, setRescheduleTo] = useState("");
+  const [planValues, setPlanValues] = useState<SpendingPlanData | null>(null);
+  const [planSaving, setPlanSaving] = useState(false);
+  const [auditChoices, setAuditChoices] = useState<Map<string, "keep" | "investigate">>(
+    new Map()
+  );
+  const [done, setDone] = useState(false);
 
   useEffect(() => {
-    getMoneyDateTruth().then(setTruth);
+    getMoneyDateTruth().then((data) => {
+      setTruth(data);
+      if (data?.deep?.plan) setPlanValues(data.deep.plan);
+    });
   }, []);
 
   if (!truth) {
@@ -56,24 +100,77 @@ export default function MoneyDatePage() {
     );
   }
 
-  const { current, beats } = truth;
+  const { current, beats, deep } = truth;
   const open = current && current.status !== "COMPLETED";
+
+  const sequence: CardKey[] = deep
+    ? ["weather", "insight", "action", "drift", "csp", "audit", "goal"]
+    : ["weather", "insight", "action", "goal"];
+  const total = sequence.length;
+  const cardKey = step < total ? sequence[step] : null;
+
+  const investigations = [...auditChoices.entries()]
+    .filter(([, choice]) => choice === "investigate")
+    .map(([merchantPattern]) =>
+      deep?.subscriptions.find((s) => s.merchantPattern === merchantPattern)
+        ?.merchant ?? merchantPattern
+    );
+
+  async function advance() {
+    // The CSP tune-up writes through the plan's awaited action (#50) —
+    // most months a confirm-and-move-on; a failed save stays put.
+    if (cardKey === "csp" && planValues && deep?.plan) {
+      const changed =
+        JSON.stringify({ ...planValues, fixedCostLineItems: [] }) !==
+        JSON.stringify({ ...deep.plan, fixedCostLineItems: [] });
+      if (changed) {
+        const totalPct =
+          planValues.fixedCostsPercent +
+          planValues.savingsPercent +
+          planValues.investmentsPercent +
+          planValues.guiltFreePercent;
+        if (totalPct !== 100) {
+          setError("The four buckets must total 100% before moving on.");
+          return;
+        }
+        setPlanSaving(true);
+        setError(null);
+        const saved = await saveSpendingPlan({
+          fixedCostsPercent: planValues.fixedCostsPercent,
+          savingsPercent: planValues.savingsPercent,
+          investmentsPercent: planValues.investmentsPercent,
+          guiltFreePercent: planValues.guiltFreePercent,
+          fixedCostsOverridden: planValues.fixedCostsOverridden,
+        });
+        setPlanSaving(false);
+        if ("error" in saved && saved.error) {
+          // Rollback (#29): the sliders return to server truth.
+          setPlanValues(deep.plan);
+          setError(saved.error);
+          return;
+        }
+      }
+    }
+    setError(null);
+    setStep(step + 1);
+  }
 
   async function finish() {
     if (!current || !beats) return;
     setFinishing(true);
     setError(null);
+    const chosenAction = investigateAction(investigations) ?? beats.action;
     const result = await completeMoneyDate({
       id: current.id,
       presentNames: [present],
-      beats,
+      beats: { ...beats, action: chosenAction },
     });
     setFinishing(false);
     if (result.error) {
       setError(result.error);
       return;
     }
-    setStep(5);
+    setDone(true);
   }
 
   async function moveTo(dateIso: string) {
@@ -87,45 +184,28 @@ export default function MoneyDatePage() {
     router.push("/dashboard");
   }
 
-  // The card sequence, only while a Date is open (or just finished).
-  const cards =
-    open && beats
-      ? [
-          {
-            key: "weather",
-            title: beats.weather.state,
-            titleClass: `font-serif text-5xl ${WEATHER_COLOR[beats.weather.state]}`,
-            eyebrow: "The period behind you",
-            body: beats.weather.sentence,
-          },
-          {
-            key: "insight",
-            title: "One insight",
-            titleClass: "font-serif text-3xl text-text-primary",
-            eyebrow: "Patterns, not verdicts",
-            body: beats.insight,
-          },
-          {
-            key: "action",
-            title: "One next action",
-            titleClass: "font-serif text-3xl text-text-primary",
-            eyebrow: "Just one",
-            body: beats.action,
-          },
-          {
-            key: "goal",
-            title: "Pick the goal this is all for",
-            titleClass: "font-serif text-3xl text-accent-gold",
-            eyebrow: "Always end on the dream",
-            body:
-              "The Spotlight Goal lives here soon — one dream, funded a slice at a time, closing every Money Date. Until then, hold the picture of it together.",
-          },
-        ]
-      : [];
+  const eyebrow = (label: string) => (
+    <p className="text-xs font-sans uppercase tracking-wide text-text-secondary mb-3">
+      {label} · {step + 1} of {total}
+    </p>
+  );
+
+  const nextButton = (label = "Next") => (
+    <div className="mt-8 flex items-center justify-center gap-3">
+      {step > 0 && (
+        <Button variant="ghost" size="sm" onClick={() => setStep(step - 1)}>
+          Back
+        </Button>
+      )}
+      <Button onClick={advance} disabled={planSaving}>
+        {planSaving ? "Saving…" : label}
+      </Button>
+    </div>
+  );
 
   return (
     <div className="mx-auto max-w-md flex flex-col min-h-[70vh]" data-money-date>
-      {!open && step !== 5 && (
+      {!open && !done && (
         <div className="text-center py-10">
           <h1 className="font-serif text-3xl text-text-primary mb-2">
             Money Date
@@ -138,39 +218,218 @@ export default function MoneyDatePage() {
         </div>
       )}
 
-      {open && step < 4 && beats && (
+      {open && !done && cardKey && cardKey !== "goal" && beats && (
         <AnimatePresence mode="wait">
           <motion.section
-            key={cards[step].key}
-            data-date-card={cards[step].key}
+            key={cardKey}
+            data-date-card={cardKey}
             initial={{ opacity: 0, x: 24 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -24 }}
             transition={{ duration: 0.25 }}
             className="flex-1 flex flex-col justify-center text-center py-10"
           >
-            <p className="text-xs font-sans uppercase tracking-wide text-text-secondary mb-3">
-              {cards[step].eyebrow} · {step + 1} of 4
-            </p>
-            <h1 className={cards[step].titleClass}>{cards[step].title}</h1>
-            <p className="text-text-primary text-base leading-relaxed font-sans mt-4">
-              {cards[step].body}
-            </p>
-            <div className="mt-8 flex items-center justify-center gap-3">
-              {step > 0 && (
-                <Button variant="ghost" size="sm" onClick={() => setStep(step - 1)}>
-                  Back
-                </Button>
-              )}
-              <Button onClick={() => setStep(step + 1)}>
-                {step === 3 ? "Finish the Date" : "Next"}
-              </Button>
-            </div>
+            {cardKey === "weather" && (
+              <>
+                {eyebrow("The period behind you")}
+                <h1
+                  className={`font-serif text-5xl ${WEATHER_COLOR[beats.weather.state]}`}
+                >
+                  {beats.weather.state}
+                </h1>
+                <p className="text-text-primary text-base leading-relaxed font-sans mt-4">
+                  {beats.weather.sentence}
+                </p>
+                {nextButton()}
+              </>
+            )}
+
+            {cardKey === "insight" && (
+              <>
+                {eyebrow("Patterns, not verdicts")}
+                <h1 className="font-serif text-3xl text-text-primary">
+                  One insight
+                </h1>
+                <p className="text-text-primary text-base leading-relaxed font-sans mt-4">
+                  {beats.insight}
+                </p>
+                {nextButton()}
+              </>
+            )}
+
+            {cardKey === "action" && (
+              <>
+                {eyebrow("Just one")}
+                <h1 className="font-serif text-3xl text-text-primary">
+                  One next action
+                </h1>
+                <p className="text-text-primary text-base leading-relaxed font-sans mt-4">
+                  {beats.action}
+                </p>
+                {nextButton()}
+              </>
+            )}
+
+            {cardKey === "drift" && deep && (
+              <>
+                {eyebrow("The monthly look")}
+                <h1 className="font-serif text-3xl text-text-primary">
+                  Dial Drift
+                </h1>
+                {deep.dialDrift.suppressed ? (
+                  <p className="text-text-secondary text-sm font-sans mt-4">
+                    Dial Drift needs at least 5 dial-categorized guilt-free
+                    transactions last month to read honestly — not there
+                    yet. No verdicts on thin data.
+                  </p>
+                ) : (
+                  <div className="mt-4 space-y-2 text-left">
+                    <p className="text-text-secondary text-xs font-sans text-center mb-2">
+                      What you said matters, next to where the fun money
+                      actually went. Information, not judgment.
+                    </p>
+                    {deep.dialDrift.rows.slice(0, 5).map((row) => (
+                      <div
+                        key={row.category}
+                        className="flex items-baseline justify-between rounded-lg bg-white border border-bg-secondary px-3 py-2 text-sm font-sans"
+                      >
+                        <span className="text-text-primary">{row.name}</span>
+                        <span className="text-text-secondary text-xs">
+                          you said {row.statedLevel}/10 · got{" "}
+                          {Math.round(row.sharePercent)}% (
+                          {dollars(row.actualCents)})
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <CounselorDoor topic="We're looking at our Dial Drift — where our stated Money Dial priorities and our actual guilt-free spending don't line up." />
+                {nextButton()}
+              </>
+            )}
+
+            {cardKey === "csp" && deep && (
+              <>
+                {eyebrow("The monthly look")}
+                <h1 className="font-serif text-3xl text-text-primary">
+                  Plan tune-up
+                </h1>
+                {planValues ? (
+                  <div className="mt-4 text-left">
+                    <p className="text-text-secondary text-xs font-sans text-center mb-3">
+                      Most months this is a nod and a Next. Nudge the
+                      buckets only if life changed.
+                    </p>
+                    <CSPSliders
+                      values={planValues}
+                      onChange={setPlanValues}
+                      totalIncome={0}
+                    />
+                  </div>
+                ) : (
+                  <p className="text-text-secondary text-sm font-sans mt-4">
+                    No Conscious Spending Plan yet — set one on the Plan
+                    page and it&apos;ll be here next month.
+                  </p>
+                )}
+                <CounselorDoor topic="We're tuning our Conscious Spending Plan percentages and could use help talking through the trade-offs." />
+                {nextButton(planValues ? "Looks right — Next" : "Next")}
+              </>
+            )}
+
+            {cardKey === "audit" && deep && (
+              <>
+                {eyebrow("The monthly look")}
+                <h1 className="font-serif text-3xl text-text-primary">
+                  Subscription audit
+                </h1>
+                {deep.subscriptions.length === 0 ? (
+                  <p className="text-text-secondary text-sm font-sans mt-4">
+                    No recurring subscription charges detected in the feed —
+                    nothing to audit this month.
+                  </p>
+                ) : (
+                  <div className="mt-4 space-y-2 text-left">
+                    <p className="text-text-secondary text-xs font-sans text-center mb-2">
+                      The app never cancels anything — “investigate” just
+                      becomes your one next action.
+                    </p>
+                    {deep.subscriptions.map((sub) => {
+                      const choice =
+                        auditChoices.get(sub.merchantPattern) ?? "keep";
+                      return (
+                        <div
+                          key={sub.merchantPattern}
+                          className="flex items-center justify-between gap-2 rounded-lg bg-white border border-bg-secondary px-3 py-2 text-sm font-sans"
+                        >
+                          <span className="min-w-0 truncate text-text-primary">
+                            {sub.merchant}
+                            <span className="text-text-secondary text-xs">
+                              {" "}
+                              · {dollars(sub.typicalAmountCents)}/
+                              {sub.cadence.toLowerCase()}
+                            </span>
+                          </span>
+                          <span className="flex shrink-0 gap-1">
+                            {(["keep", "investigate"] as const).map((option) => (
+                              <button
+                                key={option}
+                                type="button"
+                                onClick={() =>
+                                  setAuditChoices((current) =>
+                                    new Map(current).set(
+                                      sub.merchantPattern,
+                                      option
+                                    )
+                                  )
+                                }
+                                className={`rounded-full border px-2 py-0.5 text-xs transition-colors ${
+                                  choice === option
+                                    ? "border-accent-gold bg-accent-gold/10 text-accent-gold"
+                                    : "border-bg-secondary bg-white text-text-secondary"
+                                }`}
+                              >
+                                {option}
+                              </button>
+                            ))}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                <CounselorDoor topic="We're doing our subscription audit and disagree about what to keep." />
+                {nextButton()}
+              </>
+            )}
           </motion.section>
         </AnimatePresence>
       )}
 
-      {open && step === 4 && (
+      {open && !done && cardKey === "goal" && (
+        <section
+          data-date-card="goal"
+          className="flex-1 flex flex-col justify-center text-center py-10"
+        >
+          {eyebrow("Always end on the dream")}
+          <h1 className="font-serif text-3xl text-accent-gold">
+            Pick the goal this is all for
+          </h1>
+          <p className="text-text-primary text-base leading-relaxed font-sans mt-4">
+            The Spotlight Goal lives here soon — one dream, funded a slice
+            at a time, closing every Money Date. Until then, hold the
+            picture of it together.
+          </p>
+          <div className="mt-8 flex items-center justify-center gap-3">
+            <Button variant="ghost" size="sm" onClick={() => setStep(step - 1)}>
+              Back
+            </Button>
+            <Button onClick={() => setStep(total)}>Finish the Date</Button>
+          </div>
+        </section>
+      )}
+
+      {open && !done && step === total && (
         <section
           data-date-card="finish"
           className="flex-1 flex flex-col justify-center text-center py-10"
@@ -178,6 +437,11 @@ export default function MoneyDatePage() {
           <h1 className="font-serif text-3xl text-text-primary">
             Who was here?
           </h1>
+          {investigations.length > 0 && (
+            <p className="text-sm font-sans text-text-secondary mt-2">
+              Your one next action: {investigateAction(investigations)}
+            </p>
+          )}
           <div className="mt-4 flex items-center justify-center gap-2">
             {PRESENT_CHOICES.map((choice) => (
               <button
@@ -202,14 +466,16 @@ export default function MoneyDatePage() {
         </section>
       )}
 
-      {step === 5 && (
+      {done && (
         <section
           data-date-card="kept"
           className="flex-1 flex flex-col justify-center text-center py-10"
         >
           <h1 className="font-serif text-4xl text-success">Kept ✓</h1>
           <p className="text-sm font-sans text-text-secondary mt-3">
-            Ten minutes, together — see you next payday.
+            {investigations.length > 0
+              ? `Ten minutes, together — and one action: ${investigateAction(investigations)}`
+              : "Ten minutes, together — see you next payday."}
           </p>
           <Link
             href="/dashboard"
@@ -222,7 +488,7 @@ export default function MoneyDatePage() {
 
       {/* Travel shift (#62): one tap to a chosen evening; moved, never
           skipped — a moved Date still counts as kept. */}
-      {open && step === 0 && (
+      {open && !done && step === 0 && (
         <div className="border-t border-bg-secondary pt-4 pb-2 text-center">
           <p className="text-xs font-sans text-text-secondary mb-2">
             Not together tonight? Move it — a moved Date still counts.
