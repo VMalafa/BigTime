@@ -148,3 +148,69 @@ test("recorded payloads: unsigned rejected; .ics drafts + re-import dedup; unkno
     page.locator("[data-inbound-status='parked']").first()
   ).toContainText("nothing was dropped");
 });
+
+// The active provider (CloudMailin JSON-Normalized) rides the same spine
+// through its own normalizer — recorded payload, deterministic paths.
+test("cloudmailin payloads: normalized .ics drafts and parked unknowns", async ({
+  request,
+}) => {
+  const stamp = Date.now();
+  const cmRoute = "/api/inbound/cloudmailin";
+
+  expect(
+    (
+      await request.post(cmRoute, {
+        data: { headers: { message_id: `<cm-${stamp}@x>`, from: "a@b.c" } },
+      })
+    ).status()
+  ).toBe(401);
+
+  const withIcs = {
+    envelope: { from: "office@e2e-school.example", to: "x@cloudmailin.net" },
+    headers: {
+      from: '"E2E School Office" <office@e2e-school.example>',
+      subject: "Calendar attached",
+      message_id: `<cm-${stamp}-ics@e2e>`,
+      date: "Sat, 18 Jul 2026 12:00:00 +0000",
+    },
+    plain: "This year's calendar is attached.",
+    attachments: [
+      {
+        file_name: "calendar.ics",
+        content: Buffer.from(INBOUND_ICS, "utf8").toString("base64"),
+        content_type: "text/calendar",
+        size: INBOUND_ICS.length,
+        disposition: "attachment",
+      },
+    ],
+  };
+  // Same school calendar as the Postmark case above (which ran first and
+  // created the drafts): the natural-key dedup reaches across providers,
+  // so this raises nothing new — proof it's one spine.
+  const response = await request.post(
+    `${cmRoute}?secret=${encodeURIComponent(secret())}`,
+    { data: withIcs }
+  );
+  expect(response.status()).toBe(200);
+  expect(await response.json()).toMatchObject({
+    ok: true,
+    status: "PROCESSED",
+    eventsCreated: 0,
+  });
+
+  // Unknown empty sender parks — same honest ledger.
+  const parked = await request.post(
+    `${cmRoute}?secret=${encodeURIComponent(secret())}`,
+    {
+      data: {
+        envelope: { from: "mystery@nowhere.example" },
+        headers: {
+          from: "mystery@nowhere.example",
+          subject: "FWD: (empty)",
+          message_id: `<cm-${stamp}-junk@e2e>`,
+        },
+      },
+    }
+  );
+  expect(await parked.json()).toMatchObject({ ok: true, status: "PARKED" });
+});

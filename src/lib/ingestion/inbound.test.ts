@@ -3,7 +3,9 @@ import {
   emailSourceName,
   extractableText,
   htmlToText,
+  parseAddress,
   pickIcsAttachments,
+  validateCloudMailinPayload,
   validateInboundPayload,
   verifyInboundSecret,
   type InboundPayload,
@@ -30,6 +32,99 @@ describe("validateInboundPayload", () => {
     expect(validateInboundPayload({})).toBeNull();
     expect(validateInboundPayload({ MessageID: "", From: "a", Subject: "b" })).toBeNull();
     expect(validateInboundPayload({ MessageID: "m", Subject: "b" })).toBeNull();
+  });
+});
+
+describe("parseAddress", () => {
+  it("splits display-name forms and passes bare addresses through", () => {
+    expect(parseAddress('"Corbett Prep" <news@finalsite.net>')).toEqual({
+      email: "news@finalsite.net",
+      name: "Corbett Prep",
+    });
+    expect(parseAddress("Corbett Prep <news@finalsite.net>")).toEqual({
+      email: "news@finalsite.net",
+      name: "Corbett Prep",
+    });
+    expect(parseAddress("news@finalsite.net")).toEqual({
+      email: "news@finalsite.net",
+    });
+  });
+});
+
+describe("validateCloudMailinPayload", () => {
+  const cloudmailin = {
+    envelope: { from: "news@resources.finalsite.net", to: "x@cloudmailin.net" },
+    headers: {
+      from: '"Corbett Prep" <news@resources.finalsite.net>',
+      subject: "This Week at Corbett",
+      message_id: "<abc123@mail.finalsite.net>",
+      date: "Sat, 18 Jul 2026 12:00:00 +0000",
+    },
+    plain: "Spirit Week Thurs. 13 & Fri. 14",
+    html: "<p>Spirit Week</p>",
+    attachments: [
+      {
+        file_name: "cal.ics",
+        content: "QkVHSU46VkNBTEVOREFS",
+        content_type: "text/calendar",
+        size: 20,
+        disposition: "attachment",
+      },
+    ],
+  };
+
+  it("normalizes to the spine's payload shape", () => {
+    const p = validateCloudMailinPayload(cloudmailin);
+    expect(p).toMatchObject({
+      MessageID: "<abc123@mail.finalsite.net>",
+      From: "news@resources.finalsite.net",
+      FromFull: {
+        Email: "news@resources.finalsite.net",
+        Name: "Corbett Prep",
+      },
+      Subject: "This Week at Corbett",
+      TextBody: "Spirit Week Thurs. 13 & Fri. 14",
+    });
+    expect(p!.Attachments).toEqual([
+      {
+        Name: "cal.ics",
+        Content: "QkVHSU46VkNBTEVOREFS",
+        ContentType: "text/calendar",
+        ContentLength: 20,
+      },
+    ]);
+    // The normalized payload rides the same downstream helpers.
+    expect(emailSourceName(p!)).toBe("Corbett Prep");
+    expect(pickIcsAttachments(p!)).toHaveLength(1);
+  });
+
+  it("carries URL-mode attachments without content (no .ics ride)", () => {
+    const p = validateCloudMailinPayload({
+      ...cloudmailin,
+      attachments: [
+        {
+          file_name: "cal.ics",
+          url: "https://store.example/cal.ics",
+          content_type: "text/calendar",
+          size: 20,
+        },
+      ],
+    });
+    expect(p!.Attachments![0].Content).toBe("");
+  });
+
+  it("rejects payloads without a message id or sender", () => {
+    expect(
+      validateCloudMailinPayload({ ...cloudmailin, headers: { from: "a@b" } })
+    ).toBeNull();
+    expect(
+      validateCloudMailinPayload({
+        headers: { message_id: "<x@y>", subject: "s" },
+        envelope: {},
+      })
+    ).toBeNull();
+    expect(validateCloudMailinPayload(null)).toBeNull();
+    expect(validateCloudMailinPayload({ Postmark: true })).toBeNull();
   });
 });
 
