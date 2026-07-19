@@ -33,7 +33,7 @@ export interface SerializedEvent {
 export interface SerializedSource {
   id: string;
   name: string;
-  kind: "IMPORT_PHOTO" | "IMPORT_ICS" | "MANUAL";
+  kind: "IMPORT_PHOTO" | "IMPORT_ICS" | "MANUAL" | "EMAIL_FORWARD";
   sourceStamp: string | null;
   categories: string[];
   events: SerializedEvent[];
@@ -177,7 +177,10 @@ export function CalendarIngestion({ sources }: { sources: SerializedSource[] }) 
         // (#57) also routes same-day siblings and below-confidence-floor
         // rows to individual attention.
         const { confirmAll, individual } = partitionDraftTiers(drafts, {
-          siblingsToIndividual: source.kind === "IMPORT_PHOTO",
+          // AI-extracted kinds (photo, forwarded email) get the same
+          // same-day-sibling distrust; the deterministic ICS path does not.
+          siblingsToIndividual:
+            source.kind === "IMPORT_PHOTO" || source.kind === "EMAIL_FORWARD",
           needsAttention:
             source.kind === "IMPORT_PHOTO"
               ? (e) =>
@@ -208,7 +211,9 @@ export function CalendarIngestion({ sources }: { sources: SerializedSource[] }) 
               <p className="text-xs text-text-secondary font-sans">
                 {source.kind === "MANUAL"
                   ? "Entered by hand"
-                  : "Imported calendar"}
+                  : source.kind === "EMAIL_FORWARD"
+                    ? "From forwarded email"
+                    : "Imported calendar"}
                 {source.sourceStamp ? ` · ${source.sourceStamp}` : ""}
                 {dismissedCount > 0
                   ? ` · ${dismissedCount} dismissed (won't be raised again)`
