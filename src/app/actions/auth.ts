@@ -82,7 +82,7 @@ export async function signUp(formData: FormData) {
   const name = formData.get("name") as string;
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
-  const redirectTo = (formData.get("redirectTo") as string) || "/flow";
+  const redirectTo = (formData.get("redirectTo") as string) || "/dashboard";
 
   if (!name || !email || !password) {
     return { error: "All fields are required." };

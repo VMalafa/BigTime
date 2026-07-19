@@ -12,6 +12,7 @@ import {
   deriveEarmarks,
   filterPaycheckDeposits,
 } from "@/lib/heartbeat/pay-period";
+import { computeManualHeartbeat } from "@/lib/heartbeat/manual";
 
 const LOOKBACK_MS = 180 * 24 * 60 * 60 * 1000;
 
@@ -19,6 +20,9 @@ export interface HeartbeatData {
   available: boolean;
   /** Why the heartbeat is not available yet (Honesty Rule: say so). */
   reason?: string;
+  /** True when computed from stated income on the calendar month (#73's
+   * manual fuel) rather than feed-bounded Pay Periods. */
+  manualFuel?: boolean;
   safeToSpendCents?: number;
   paycheckCents?: number;
   earmarkedCents?: number;
@@ -42,11 +46,13 @@ export async function getHeartbeat(): Promise<HeartbeatData> {
     select: { key: true },
   });
   if (confirmedStreams.length === 0) {
-    return {
-      available: false,
-      reason:
-        "Confirm an income stream (Income page) to start the heartbeat — Pay Periods are bounded by your paychecks.",
-    };
+    return (
+      (await manualHeartbeat(user.id)) ?? {
+        available: false,
+        reason:
+          "Add your income (Income page) to start the heartbeat — Safe-to-Spend needs a number to start from.",
+      }
+    );
   }
 
   const [transactions, profiles] = await Promise.all([
@@ -85,10 +91,12 @@ export async function getHeartbeat(): Promise<HeartbeatData> {
 
   const period = deriveCurrentPayPeriod(paychecks, new Date());
   if (!period) {
-    return {
-      available: false,
-      reason: "No paycheck from a confirmed income stream has landed yet.",
-    };
+    return (
+      (await manualHeartbeat(user.id)) ?? {
+        available: false,
+        reason: "No paycheck from a confirmed income stream has landed yet.",
+      }
+    );
   }
 
   const chargePatterns = detectRecurringPatterns(
@@ -137,5 +145,56 @@ export async function getHeartbeat(): Promise<HeartbeatData> {
       dueDate: e.dueDate.toISOString(),
     })),
     undated,
+  };
+}
+
+// Manual fuel (#73): no feed paychecks to bound a Pay Period, so stated
+// income powers a calendar-month Safe-to-Spend until a linked paycheck
+// lands and the feed-bounded heartbeat takes over.
+async function manualHeartbeat(userId: string): Promise<HeartbeatData | null> {
+  const profiles = await prisma.profile.findMany({
+    where: { userId },
+    include: {
+      incomeSources: true,
+      spendingPlan: { include: { fixedCostLineItems: true } },
+    },
+  });
+
+  const monthlyIncomeCents = profiles
+    .flatMap((p) => p.incomeSources)
+    .reduce((sum, s) => sum + Math.round(Number(s.monthlyAmount) * 100), 0);
+  const plan =
+    profiles.find((p) => p.isDefault)?.spendingPlan ??
+    profiles.find((p) => p.spendingPlan)?.spendingPlan ??
+    null;
+
+  const manual = computeManualHeartbeat({
+    monthlyIncomeCents,
+    lineItems: (plan?.fixedCostLineItems ?? []).map((item) => ({
+      name: item.name,
+      monthlyAmountCents: Math.round(Number(item.monthlyAmount) * 100),
+    })),
+    plan: plan
+      ? {
+          savingsPercent: plan.savingsPercent,
+          investmentsPercent: plan.investmentsPercent,
+        }
+      : null,
+    now: new Date(),
+  });
+  if (!manual) return null;
+
+  return {
+    available: true,
+    manualFuel: true,
+    safeToSpendCents: manual.safeToSpendCents,
+    paycheckCents: manual.paycheckCents,
+    earmarkedCents: manual.earmarkedCents,
+    plannedSavingsInvestmentsCents: manual.plannedSavingsInvestmentsCents,
+    periodStart: manual.periodStart.toISOString(),
+    periodEnd: manual.periodEndExclusive.toISOString(),
+    projectedEnd: false,
+    earmarks: [],
+    undated: [],
   };
 }

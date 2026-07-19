@@ -121,7 +121,7 @@ test("linked path: confidence-tiered Proposals on fixed-costs and debts steps", 
   await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 });
 
   // --- Fixed-cost Proposals, tiered per the Proposal glossary entry.
-  await page.goto("/flow/fixed-costs");
+  await page.goto("/dashboard/fixed-costs");
   await expect(
     page.getByText("Proposals from your linked accounts")
   ).toBeVisible({ timeout: 20_000 });
@@ -140,11 +140,13 @@ test("linked path: confidence-tiered Proposals on fixed-costs and debts steps", 
   // Dismissal is remembered: dismiss the rent Proposal, reload, gone.
   await page.getByRole("button", { name: "Dismiss", exact: true }).click();
   await page.reload();
-  await expect(page.getByText("What's actually locked in?")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Fixed Costs", exact: true })
+  ).toBeVisible();
   await expect(page.getByText("Big enough to move the plan")).toHaveCount(0);
 
   // --- Debt Proposals: unmapped credit-card account, APR + minimum only.
-  await page.goto("/flow/debts");
+  await page.goto("/dashboard/debts");
   await expect(
     page.getByText("Debts found in your linked accounts")
   ).toBeVisible({ timeout: 20_000 });
@@ -156,11 +158,13 @@ test("linked path: confidence-tiered Proposals on fixed-costs and debts steps", 
   await page.getByRole("button", { name: "Confirm Debt" }).click();
 
   // The confirmed Debt lands in the debts list with the feed-owned balance.
-  await expect(page.getByText("Total Debt")).toBeVisible({ timeout: 20_000 });
+  await expect(
+    page.getByText("Total Remaining Debt")
+  ).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText("E2E Card").first()).toBeVisible();
 
   // --- Income Proposals: always individually confirmed, never bundled.
-  await page.goto("/flow/income");
+  await page.goto("/dashboard/income");
   await expect(
     page.getByText("Income found in your linked accounts")
   ).toBeVisible({ timeout: 20_000 });
@@ -180,14 +184,14 @@ test("linked path: confidence-tiered Proposals on fixed-costs and debts steps", 
   const confirmRoundTrip = page.waitForResponse(
     (response) =>
       response.request().method() === "POST" &&
-      response.url().includes("/flow/income") &&
+      response.url().includes("/dashboard/income") &&
       (response.request().postData() ?? "").includes("ACME CORP")
   );
   await page.getByRole("button", { name: "Confirm income" }).click();
   await confirmRoundTrip;
   // Appears twice once confirmed (regular income + effective monthly) —
   // both prove the proposal flowed into the CSP machinery like typed income.
-  await expect(page.getByText("$11,500/mo").first()).toBeVisible({
+  await expect(page.getByText("$11,500").first()).toBeVisible({
     timeout: 15_000,
   });
 

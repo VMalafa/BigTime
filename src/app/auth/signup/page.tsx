@@ -19,7 +19,7 @@ export default function SignupPage() {
 
 function SignupForm() {
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get("redirectTo") || "/flow";
+  const redirectTo = searchParams.get("redirectTo") || "/dashboard";
   const [password, setPassword] = useState("");
 
   const [state, formAction, pending] = useActionState(

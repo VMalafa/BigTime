@@ -1,29 +1,131 @@
 import { expect, test } from "@playwright/test";
 import {
+  E2E_MANUAL_EMAIL,
   E2E_SPENDING_EMAIL,
+  e2eManualPassword,
   e2eSpendingPassword,
   loadDotEnv,
 } from "./fixture";
 
 loadDotEnv();
 
-// Signup-first (#48): flow pages never render anonymously. Anonymous
-// visitors are new households, so the proxy sends them to signup.
-test("anonymous flow access redirects to signup", async ({ page }) => {
-  for (const path of [
-    "/flow",
-    "/flow/money-type",
-    "/flow/income",
-    "/flow/spending-plan",
-  ]) {
+// Signup-first (#48): nothing renders anonymously. The retired /flow root
+// bounces through Home to the login gate; the canonical pages and the
+// side-quest pair gate the same way.
+test("anonymous access redirects to the auth gate", async ({ page }) => {
+  await page.goto("/flow");
+  await expect(page).toHaveURL(/\/auth\/(signup|login)/);
+  for (const path of ["/flow/money-type", "/flow/scripts"]) {
     await page.goto(path);
     await expect(page).toHaveURL(/\/auth\/signup/);
   }
+  for (const path of ["/dashboard/income", "/dashboard/spending-plan"]) {
+    await page.goto(path);
+    await expect(page).toHaveURL(/\/auth\/(signup|login)/);
+  }
+});
+
+// The One Flow's manual path (#73): a fresh household walks the canonical
+// pages on manual fuel and finishes the moment Safe-to-Spend computes.
+test.describe("manual-path walk", () => {
+  test.skip(
+    process.env.E2E_SEED_FIXTURE !== "1",
+    "The manual walk needs the seeded manual fixture household: run with E2E_SEED_FIXTURE=1."
+  );
+
+  test("fresh household walks income → plan → dials to a real Safe-to-Spend", async ({
+    page,
+  }) => {
+    await page.goto("/auth/login");
+    await page.getByLabel("Email").fill(E2E_MANUAL_EMAIL);
+    await page.getByLabel("Password").fill(e2eManualPassword());
+    await page.getByRole("button", { name: "Sign In", exact: true }).click();
+    await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 });
+
+    // The walk banner is up; its finger points at Income (linking is
+    // skippable — manual is the fallback, never a fork).
+    const walk = page.locator("[data-setup-walk]");
+    await expect(walk).toBeVisible({ timeout: 20_000 });
+    await expect(walk.getByText("Link accounts")).toBeVisible();
+    await page.getByRole("link", { name: "Continue setup →" }).click();
+    await expect(page).toHaveURL(/\/dashboard\/income/);
+
+    // Manual fuel: one income source.
+    await page.getByLabel("Income Source").fill("E2E Manual Salary");
+    await page.getByLabel("Monthly Amount").fill("6000");
+    const addRoundTrip = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        (response.request().postData() ?? "").includes("E2E Manual Salary")
+    );
+    await page.getByRole("button", { name: "Add Income" }).click();
+    await expect(page.getByText("E2E Manual Salary")).toBeVisible();
+    await addRoundTrip;
+
+    // The walk's finger moves to Plan & Dials → the CSP page first.
+    await page.goto("/dashboard/spending-plan");
+    await expect(
+      page.getByRole("heading", { name: "Conscious Spending Plan" })
+    ).toBeVisible({ timeout: 20_000 });
+    // Reach 100% via the flexible-bucket balancer if needed, then save.
+    const balance = page.getByRole("button", {
+      name: "Balance remaining across flexible buckets",
+    });
+    if (await balance.isVisible().catch(() => false)) {
+      await balance.click();
+    }
+    const saveRoundTrip = page.waitForResponse(
+      (response) => response.request().method() === "POST"
+    );
+    await page.getByRole("button", { name: "Save plan" }).click();
+    await saveRoundTrip;
+    await expect(page.getByText("Plan saved.")).toBeVisible({
+      timeout: 20_000,
+    });
+
+    // Name a Dial (the debounced per-dial save fires after the hand
+    // settles); drain it before navigating.
+    await page.goto("/dashboard/money-dials");
+    const firstDial = page.locator('input[type="range"]').first();
+    await expect(firstDial).toBeVisible({ timeout: 20_000 });
+    await firstDial.fill("8");
+    await page.waitForTimeout(600);
+    await page.waitForLoadState("networkidle");
+
+    // Setup complete = Safe-to-Spend computable: the walk retires, the
+    // heartbeat answers from stated income, and the quiet link nudge
+    // persists because no Linked Account exists.
+    await page.goto("/dashboard");
+    await expect(page.getByText("Safe-to-Spend")).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(
+      page.getByText("This month, from your stated income")
+    ).toBeVisible();
+    await expect(page.locator("[data-setup-walk]")).toHaveCount(0);
+    await expect(page.getByText("Link your accounts")).toBeVisible();
+
+    // Post-setup, the side-quest card offers the reflective pair; dismiss
+    // forever hides it (it lives on in Settings).
+    await expect(page.locator("[data-side-quest]")).toBeVisible({
+      timeout: 20_000,
+    });
+    await page
+      .getByRole("button", { name: "Not now — don't ask again" })
+      .click();
+    await expect(page.locator("[data-side-quest]")).toHaveCount(0);
+    await page.waitForLoadState("networkidle");
+    await page.reload();
+    await expect(page.getByText("Safe-to-Spend")).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(page.locator("[data-side-quest]")).toHaveCount(0);
+  });
 });
 
 // The signed-in smoke needs the seeded fixture household (see
 // global-setup.ts); without it this block skips loudly instead of failing.
-test.describe("signed-in flow", () => {
+test.describe("signed-in canonical pages", () => {
   test.skip(
     process.env.E2E_SEED_FIXTURE !== "1",
     "Signed-in flow smoke needs the seeded fixture household: run with E2E_SEED_FIXTURE=1 (writes an isolated e2e-spending-* household to the shared DB)."
@@ -37,38 +139,14 @@ test.describe("signed-in flow", () => {
     await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 });
   });
 
-  // The onboarding fork renders after the money-type step; "I'll type it in"
-  // is the manual path, unchanged: it lands on /flow/debts exactly as the
-  // pre-fork Continue did.
-  test("onboarding fork after money type; manual path continues to debts", async ({
-    page,
-  }) => {
-    await page.goto("/flow/money-type");
-    await page.getByText("The Optimizer").click();
-    await page.getByRole("button", { name: "Continue", exact: true }).click();
-
-    await expect(page).toHaveURL(/\/flow\/link-accounts/);
-    await expect(
-      page.getByText("Link your accounts and we'll fill in the rest")
-    ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Link accounts" })
-    ).toBeVisible();
-
-    await page.getByRole("button", { name: "Continue typing it in" }).click();
-    await expect(page).toHaveURL(/\/flow\/debts/);
-    await expect(page.getByText("Let's see the full picture")).toBeVisible();
-  });
-
-  // #49: income is server-authoritative. An add on the flow page is an
+  // #49: income is server-authoritative. An add on the canonical page is an
   // awaited per-intent action — once its round trip lands, a full
-  // navigation loses nothing (the #13 lost-write scenario), and the
-  // dashboard income page answers from the same source. Cleans up after
+  // navigation loses nothing (the #13 lost-write scenario). Cleans up after
   // itself so the spending-smoke income totals stay untouched.
-  test("income add survives fast navigation; dashboard reads the same source", async ({
+  test("income add survives fast navigation; the canonical page owns the truth", async ({
     page,
   }) => {
-    await page.goto("/flow/income");
+    await page.goto("/dashboard/income");
     await page.getByLabel("Income Source").fill("E2E Fast Nav Income");
     await page.getByLabel("Monthly Amount").fill("123");
 
@@ -78,7 +156,7 @@ test.describe("signed-in flow", () => {
     const addRoundTrip = page.waitForResponse(
       (response) =>
         response.request().method() === "POST" &&
-        response.url().includes("/flow/income") &&
+        response.url().includes("/dashboard/income") &&
         (response.request().postData() ?? "").includes("E2E Fast Nav Income")
     );
     await page.getByRole("button", { name: "Add Income" }).click();
@@ -119,7 +197,7 @@ test.describe("signed-in flow", () => {
   test("fixed-cost line item survives a full reload; awaited remove sticks", async ({
     page,
   }) => {
-    await page.goto("/flow/fixed-costs");
+    await page.goto("/dashboard/fixed-costs");
     await page.getByLabel("Line item name").fill("E2E Fast Nav Utility");
     await page.getByLabel("Monthly amount").fill("77");
 
@@ -127,7 +205,7 @@ test.describe("signed-in flow", () => {
     const addRoundTrip = page.waitForResponse(
       (response) =>
         response.request().method() === "POST" &&
-        response.url().includes("/flow/fixed-costs") &&
+        response.url().includes("/dashboard/fixed-costs") &&
         (response.request().postData() ?? "").includes("E2E Fast Nav Utility")
     );
     await page.getByRole("button", { name: "Add line item" }).click();
@@ -137,7 +215,7 @@ test.describe("signed-in flow", () => {
 
     // Full page load straight after the write — the old debounced flush
     // lost this row (#13); the awaited action does not.
-    await page.goto("/flow/fixed-costs");
+    await page.goto("/dashboard/fixed-costs");
     await expect(page.getByText("E2E Fast Nav Utility")).toBeVisible({
       timeout: 15_000,
     });
@@ -153,7 +231,9 @@ test.describe("signed-in flow", () => {
       .click();
     await page.waitForLoadState("networkidle");
     await page.reload();
-    await expect(page.getByText("What's actually locked in?")).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Fixed Costs", exact: true })
+    ).toBeVisible();
     await expect(page.getByText("E2E Fast Nav Utility")).toHaveCount(0);
   });
 });

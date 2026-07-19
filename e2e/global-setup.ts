@@ -7,7 +7,9 @@
 import { PrismaClient } from "@prisma/client";
 import { createClient } from "@supabase/supabase-js";
 import {
+  E2E_MANUAL_EMAIL,
   E2E_SPENDING_EMAIL,
+  e2eManualPassword,
   e2eSpendingPassword,
   loadDotEnv,
 } from "./fixture";
@@ -26,16 +28,15 @@ const CONNECTION_ID = "e2e-spending-conn";
 const CHECKING_ID = "e2e-spending-checking";
 const CARD_ID = "e2e-spending-card";
 
-async function ensureAuthUser(): Promise<string> {
+async function ensureAuthUser(email: string, password: string): Promise<string> {
   const admin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { autoRefreshToken: false, persistSession: false } }
   );
-  const password = e2eSpendingPassword();
 
   const { data, error } = await admin.auth.admin.createUser({
-    email: E2E_SPENDING_EMAIL,
+    email,
     password,
     email_confirm: true,
   });
@@ -51,7 +52,7 @@ async function ensureAuthUser(): Promise<string> {
     perPage: 200,
   });
   if (listError) throw new Error(`Could not list users: ${listError.message}`);
-  const existing = list.users.find((u) => u.email === E2E_SPENDING_EMAIL);
+  const existing = list.users.find((u) => u.email === email);
   if (!existing) throw new Error("e2e auth user exists but was not found");
   await admin.auth.admin.updateUserById(existing.id, { password });
   return existing.id;
@@ -71,7 +72,14 @@ export default async function globalSetup() {
   }
 
   loadDotEnv();
-  const authUserId = await ensureAuthUser();
+  const authUserId = await ensureAuthUser(
+    E2E_SPENDING_EMAIL,
+    e2eSpendingPassword()
+  );
+  const manualUserId = await ensureAuthUser(
+    E2E_MANUAL_EMAIL,
+    e2eManualPassword()
+  );
   const prisma = new PrismaClient();
 
   try {
@@ -359,6 +367,51 @@ export default async function globalSetup() {
         },
       },
     });
+
+    // ------------------------------------------------------------------
+    // Manual-fuel household (#73): user + empty profile only. Reset to a
+    // genuinely fresh state every run so the One Flow's manual path is
+    // deterministic from step one.
+    await prisma.moneyDial.deleteMany({
+      where: { profile: { userId: manualUserId } },
+    });
+    await prisma.fixedCostLineItem.deleteMany({
+      where: { spendingPlan: { profile: { userId: manualUserId } } },
+    });
+    await prisma.spendingPlan.deleteMany({
+      where: { profile: { userId: manualUserId } },
+    });
+    await prisma.incomeSource.deleteMany({
+      where: { profile: { userId: manualUserId } },
+    });
+    await prisma.debt.deleteMany({
+      where: { profile: { userId: manualUserId } },
+    });
+    await prisma.user.upsert({
+      where: { id: manualUserId },
+      update: { sideQuestDismissedAt: null },
+      create: {
+        id: manualUserId,
+        email: E2E_MANUAL_EMAIL,
+        name: "E2E Manual Household",
+      },
+    });
+    await prisma.profile.upsert({
+      where: { id: "e2e-manual-profile" },
+      update: {},
+      create: {
+        id: "e2e-manual-profile",
+        userId: manualUserId,
+        name: "E2E Manual",
+        isDefault: true,
+      },
+    });
+    // The side-quest card must reappear for the spending household too.
+    await prisma.user.update({
+      where: { id: authUserId },
+      data: { sideQuestDismissedAt: null },
+    });
+
   } finally {
     await prisma.$disconnect();
   }

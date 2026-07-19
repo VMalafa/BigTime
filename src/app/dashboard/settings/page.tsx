@@ -56,6 +56,21 @@ export default function SettingsPage() {
         </Link>
       </Card>
 
+      {/* The "know yourselves" side-quest (#73): home of the reflective
+          pair after its Home card is dismissed forever. */}
+      <Card>
+        <h2 className="font-serif text-xl mb-4">Know Yourselves</h2>
+        <p className="text-text-secondary text-sm mb-4">
+          The reflective pair — your Money Scripts and Money Type. Twenty
+          calm minutes, whenever you have them.
+        </p>
+        <Link href="/flow/scripts">
+          <Button variant="secondary" size="sm">
+            Start the side-quest
+          </Button>
+        </Link>
+      </Card>
+
       <Card>
         <h2 className="font-serif text-xl mb-4">Partner Mode</h2>
         <p className="text-text-secondary text-sm mb-4">

@@ -113,7 +113,7 @@ export default function IncomeDashboardPage() {
             ← Back to dashboard
           </Button>
         </Link>
-        <Link href="/flow/spending-plan">
+        <Link href="/dashboard/spending-plan">
           <Button variant="secondary" size="md">
             Review spending plan
           </Button>
