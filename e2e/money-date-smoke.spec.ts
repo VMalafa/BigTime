@@ -54,14 +54,17 @@ test("payday raises the Date; travel shift moves it; timeline reads moved-not-sk
   await expect(movedMoment).toBeVisible({ timeout: 20_000 });
 });
 
-test("four cards to kept in ≤10 taps; archive holds the Date and the Check-In pre-history", async ({
+test("seven cards (first of month) to kept in ≤10 taps; archive holds the Date and the Check-In pre-history", async ({
   page,
 }) => {
   await page.goto("/dashboard/money-date");
 
-  // Card 1: Weather recap — a real state word, live-derived.
+  // Card 1: Weather recap — a real state word, live-derived. The fixture
+  // Date is the month's first (rows reseed every run), so the deep agenda
+  // (#82) joins: 7 cards, "1 of 7".
   const first = page.locator("[data-date-card='weather']");
   await expect(first).toBeVisible({ timeout: 20_000 });
+  await expect(first).toContainText("1 of 7");
   await expect(first.getByRole("heading")).toHaveText(
     /Steady|Watch|Attention/
   );
@@ -79,13 +82,41 @@ test("four cards to kept in ≤10 taps; archive holds the Date and the Check-In 
   await expect(action).toBeVisible();
   await action.getByRole("button", { name: "Next" }).click(); // tap 3
 
-  // Card 4: the closing Goal card — the invitation, never an error.
+  // Deep card 1: Dial Drift — honest suppression on thin data (the
+  // fixture's prior month carries no dialed guilt-free rows), no shame,
+  // and the counselor door.
+  const drift = page.locator("[data-date-card='drift']");
+  await expect(drift).toBeVisible();
+  await expect(drift).toContainText("No verdicts on thin data");
+  await expect(
+    drift.getByRole("link", { name: /talk this through/ })
+  ).toHaveAttribute("href", /partner\/counselor\?topic=/);
+  await drift.getByRole("button", { name: "Next" }).click(); // tap 4
+
+  // Deep card 2: the CSP tune-up — confirm-and-move-on.
+  const csp = page.locator("[data-date-card='csp']");
+  await expect(csp).toBeVisible();
+  await csp.getByRole("button", { name: /Looks right — Next/ }).click(); // tap 5
+
+  // Deep card 3: subscription audit — the seeded Netflix pattern shows;
+  // choosing investigate becomes the Date's one next action.
+  const audit = page.locator("[data-date-card='audit']");
+  await expect(audit).toBeVisible();
+  await expect(audit).toContainText("Netflix Com");
+  await audit.getByRole("button", { name: "investigate" }).first().click(); // tap 6
+  await audit.getByRole("button", { name: "Next", exact: true }).click(); // tap 7
+
+  // Closing card: always the Goal — the invitation, never an error.
   const goal = page.locator("[data-date-card='goal']");
   await expect(goal).toBeVisible();
   await expect(goal).toContainText("Pick the goal this is all for");
-  await goal.getByRole("button", { name: "Finish the Date" }).click(); // tap 4
+  await goal.getByRole("button", { name: "Finish the Date" }).click(); // tap 8
 
-  // Finish: who was here (default chip stands) → kept. Taps 5 of ≤10.
+  // Finish: the chosen investigation is the one next action; default
+  // present chip stands → kept. Tap 9 of ≤10.
+  await expect(
+    page.getByText(/Investigate Netflix Com/).first()
+  ).toBeVisible();
   await page.getByRole("button", { name: "Mark it kept" }).click();
   await expect(page.locator("[data-date-card='kept']")).toBeVisible({
     timeout: 20_000,
