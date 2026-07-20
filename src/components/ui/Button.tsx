@@ -1,13 +1,12 @@
 "use client";
 
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
-import { motion, type HTMLMotionProps } from "framer-motion";
 
 type ButtonVariant = "primary" | "secondary" | "ghost";
 type ButtonSize = "sm" | "md" | "lg";
 
 interface ButtonProps
-  extends Omit<HTMLMotionProps<"button">, "children" | "size"> {
+  extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children"> {
   variant?: ButtonVariant;
   size?: ButtonSize;
   icon?: ReactNode;
@@ -30,6 +29,8 @@ const sizeClasses: Record<ButtonSize, string> = {
   lg: "px-7 py-3.5 text-lg gap-2.5",
 };
 
+// The press feedback is pure CSS since #109 — the spring hover/tap scale
+// was framer-motion's only job here, and it priced every route ~40 kB.
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   (
     {
@@ -45,12 +46,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     ref
   ) => {
     return (
-      <motion.button
+      <button
         ref={ref}
-        whileHover={disabled ? undefined : { scale: 1.02 }}
-        whileTap={disabled ? undefined : { scale: 0.98 }}
-        transition={{ type: "spring", stiffness: 400, damping: 25 }}
-        className={`inline-flex items-center justify-center font-sans font-medium rounded-lg transition-colors duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${variantClasses[variant]} ${sizeClasses[size]} ${className}`}
+        className={`inline-flex items-center justify-center font-sans font-medium rounded-lg transition duration-200 cursor-pointer enabled:hover:scale-[1.02] enabled:active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed ${variantClasses[variant]} ${sizeClasses[size]} ${className}`}
         disabled={disabled}
         {...rest}
       >
@@ -61,7 +59,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         {icon && iconPosition === "right" && (
           <span className="inline-flex shrink-0">{icon}</span>
         )}
-      </motion.button>
+      </button>
     );
   }
 );

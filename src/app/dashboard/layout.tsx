@@ -3,7 +3,6 @@
 import { type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { motion } from "framer-motion";
 import { SetupWalkBanner } from "@/components/setup/SetupWalkBanner";
 
 interface NavItem {
@@ -92,10 +91,10 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             const active = isActive(item.href);
             return (
               <Link key={item.href} href={item.href}>
-                <motion.div
-                  whileHover={{ x: 2 }}
-                  transition={{ type: "spring", stiffness: 300, damping: 25 }}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-sans transition-colors duration-150 ${
+                {/* The hover nudge is a CSS transition since #109 — it was
+                    framer-motion's only job in this shared layout. */}
+                <div
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-sans transition-[color,background-color,translate] duration-150 hover:translate-x-[2px] ${
                     active
                       ? "bg-accent-gold/10 text-accent-gold font-medium"
                       : "text-text-secondary hover:text-text-primary hover:bg-bg-secondary"
@@ -103,7 +102,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                 >
                   <span className="shrink-0">{item.icon}</span>
                   {item.label}
-                </motion.div>
+                </div>
               </Link>
             );
           })}

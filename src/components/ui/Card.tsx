@@ -1,9 +1,6 @@
-"use client";
+import { type HTMLAttributes, type ReactNode } from "react";
 
-import { type ReactNode } from "react";
-import { motion, type HTMLMotionProps } from "framer-motion";
-
-interface CardProps extends HTMLMotionProps<"div"> {
+interface CardProps extends HTMLAttributes<HTMLDivElement> {
   header?: ReactNode;
   footer?: ReactNode;
   children: ReactNode;
@@ -17,6 +14,10 @@ const paddingClasses = {
   lg: "p-8",
 };
 
+// The entrance is pure CSS since #109 (card-enter in globals.css) — the
+// fade-up was framer-motion's only job here, and as a shared primitive it
+// dragged the library into every route. No directive: the card renders
+// server-side when its parent does.
 export function Card({
   header,
   footer,
@@ -26,11 +27,8 @@ export function Card({
   ...rest
 }: CardProps) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, ease: "easeOut" }}
-      className={`bg-white rounded-xl border border-bg-secondary shadow-[0_2px_12px_rgba(61,43,31,0.08)] ${className}`}
+    <div
+      className={`card-enter bg-white rounded-xl border border-bg-secondary shadow-[0_2px_12px_rgba(61,43,31,0.08)] ${className}`}
       {...rest}
     >
       {header && (
@@ -44,6 +42,6 @@ export function Card({
           {footer}
         </div>
       )}
-    </motion.div>
+    </div>
   );
 }
