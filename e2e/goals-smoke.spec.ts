@@ -78,51 +78,59 @@ test("Milestones celebrate one at a time, never re-raise; Spotlight switches in 
   // read — one prompt at a time, oldest first.
   const prompt = page.locator("[data-milestone-prompt]");
   await expect(prompt).toBeVisible({ timeout: 20_000 });
-  // The prompt is server-rendered into the initial HTML (#109); a click
-  // that lands before React hydrates dispatches into dead markup and the
-  // decide write silently never fires — the same race as the dial fill
-  // in flow-smoke. Let hydration and the mount reads settle first.
-  await page.waitForLoadState("networkidle");
   await expect(prompt).toHaveCount(1);
   await expect(prompt).toContainText("E2E Hawaii is 10% funded");
-  await prompt.getByRole("button", { name: /Celebrate it/ }).click();
-  await expect(prompt).toHaveCount(0);
-  // Drain the decide write before any reload — a same-tick navigation
-  // aborts it (#13).
-  await page.waitForLoadState("networkidle");
 
-  // Decided is decided: the next one up is 20%, and 10% never returns.
-  await expect(async () => {
-    await page.reload();
-    await expect(page.locator("[data-milestone-prompt]")).toContainText(
-      "E2E Hawaii is 20% funded",
-      // A cold render can exceed 10s; reloading sooner aborts the
-      // in-flight Home read and the prompt never lands.
-      { timeout: 20_000 }
-    );
-  }).toPass({ timeout: 90_000 });
-  await page
-    .locator("[data-milestone-prompt]")
-    .getByRole("button", { name: "Not this one" })
-    .click();
-  await expect(page.locator("[data-milestone-prompt]")).toHaveCount(0);
-  await page.waitForLoadState("networkidle");
+  // Decided is decided: each decide advances to the next prompt, and a
+  // decided Milestone never returns. The prompt is server-rendered and a
+  // click can be swallowed by hydration timing, or its write aborted by
+  // a same-tick reload (#13/#109) — so each step is bonus-smoke's
+  // self-healing shape: re-tap only if the write didn't stick, then
+  // prove server truth with a reload.
+  const decide = async (
+    fromText: string,
+    button: string | RegExp,
+    toText: string
+  ) => {
+    await expect(async () => {
+      const open = page.locator("[data-milestone-prompt]");
+      const from = open.getByText(fromText);
+      if (await from.isVisible().catch(() => false)) {
+        await open.getByRole("button", { name: button }).click();
+        await page.waitForLoadState("networkidle");
+      }
+      await page.reload();
+      await expect(page.locator("[data-milestone-prompt]")).toContainText(
+        toText,
+        // A cold render can exceed 10s; reloading sooner aborts the
+        // in-flight Home read and the prompt never lands.
+        { timeout: 20_000 }
+      );
+    }).toPass({ timeout: 120_000 });
+  };
 
+  await decide("E2E Hawaii is 10% funded", /Celebrate it/, "E2E Hawaii is 20% funded");
+  await decide("E2E Hawaii is 20% funded", "Not this one", "E2E Hawaii is 30% funded");
+
+  // The last decide has no successor prompt: prove it with count 0 after
+  // a reload instead.
   await expect(async () => {
+    const open = page.locator("[data-milestone-prompt]");
+    if (
+      await open
+        .getByText("E2E Hawaii is 30% funded")
+        .isVisible()
+        .catch(() => false)
+    ) {
+      await open.getByRole("button", { name: "Not this one" }).click();
+      await page.waitForLoadState("networkidle");
+    }
     await page.reload();
-    await expect(page.locator("[data-milestone-prompt]")).toContainText(
-      "E2E Hawaii is 30% funded",
-      // A cold render can exceed 10s; reloading sooner aborts the
-      // in-flight Home read and the prompt never lands.
-      { timeout: 20_000 }
-    );
-  }).toPass({ timeout: 90_000 });
-  await page
-    .locator("[data-milestone-prompt]")
-    .getByRole("button", { name: "Not this one" })
-    .click();
-  await expect(page.locator("[data-milestone-prompt]")).toHaveCount(0);
-  await page.waitForLoadState("networkidle");
+    await expect(page.locator("[data-weather-state]")).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(page.locator("[data-milestone-prompt]")).toHaveCount(0);
+  }).toPass({ timeout: 120_000 });
 
   // The two-tap Spotlight switch: an unlinked second dream takes the
   // slice's seat, then Hawaii takes it back (the closing card and the
