@@ -108,6 +108,9 @@ test("person chips: assign in two taps, persists, filters include extras; cost r
   // The awaited action persisted it: a full reload shows the same chip.
   // Poll with reloads — the optimistic chip renders before the server
   // write lands, and a same-tick reload can beat it (the #13 scenario).
+  // First let the write's round trip finish: a reload while the action's
+  // fetch is in flight aborts it, and the write is gone for good (#109).
+  await page.waitForLoadState("networkidle");
   await expect(async () => {
     await page.reload();
     await expect(

@@ -88,9 +88,18 @@ test.describe("manual-path walk", () => {
     await page.goto("/dashboard/money-dials");
     const firstDial = page.locator('input[type="range"]').first();
     await expect(firstDial).toBeVisible({ timeout: 20_000 });
-    await firstDial.fill("8");
-    await page.waitForTimeout(600);
+    // The sliders are visible in the server HTML before React hydrates; a
+    // fill that lands pre-hydration dispatches into dead markup and the
+    // debounced save silently never fires (#109). The page's mount reads
+    // settle only after hydration — wait for that, then touch the dial,
+    // and hold the walk's advance until the save's round trip lands (the
+    // same gate the income step uses).
     await page.waitForLoadState("networkidle");
+    const dialRoundTrip = page.waitForResponse(
+      (response) => response.request().method() === "POST"
+    );
+    await firstDial.fill("8");
+    await dialRoundTrip;
 
     // Setup complete = Safe-to-Spend computable: the walk retires, the
     // heartbeat answers from stated income, and the quiet link nudge

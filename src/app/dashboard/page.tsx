@@ -1,26 +1,24 @@
-"use client";
-
 // The one-truth Home (#77, Variant A from the #27 prototype): the
 // household's state IS the screen. One word, one sentence, at most one
 // action; Safe-to-Spend below; the honest uncategorized chip; a door into
 // "where did it go". Deliberately absent: debt totals, income cards,
 // charts, bonuses (#25/#27). Server data only (#53) — nothing here reads
 // the UI-state store.
+//
+// Server-first since #109: the truth is computed during the server render
+// and arrives in the initial HTML — no client-side action waterfall after
+// hydration. Interactive pieces (milestone decision, bonus decision,
+// side-quest dismissal) are small client leaves receiving data as props.
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
-import { useAuth } from "@/lib/hooks/useAuth";
-import { getHomeTruth, type HomeTruth } from "@/app/actions/home";
-import { dismissSideQuest, type SetupState } from "@/app/actions/setup";
-import { decideMilestone } from "@/app/actions/goals";
-import {
-  getSetupStateCached,
-  invalidateSetupState,
-} from "@/lib/setup/client-cache";
+import { redirect } from "next/navigation";
+import { getHomeTruth } from "@/app/actions/home";
+import { getSetupState } from "@/app/actions/setup";
 import { SafeToSpendCard } from "@/components/dashboard/SafeToSpendCard";
 import { TodayStrip } from "@/components/dashboard/TodayStrip";
-import { BonusMomentCard } from "@/components/dashboard/BonusMomentCard";
+import { BonusMomentSection } from "@/components/dashboard/BonusMomentSection";
+import { MilestonePrompt } from "@/components/dashboard/MilestonePrompt";
+import { SideQuestCard } from "@/components/dashboard/SideQuestCard";
 import type { WeatherState } from "@/lib/heartbeat/weather";
 
 const WEATHER_STYLE: Record<WeatherState, { dot: string; text: string }> = {
@@ -29,56 +27,22 @@ const WEATHER_STYLE: Record<WeatherState, { dot: string; text: string }> = {
   Attention: { dot: "bg-error", text: "text-error" },
 };
 
-export default function DashboardPage() {
-  const { isAuthenticated, loading: authLoading } = useAuth();
-  const [truth, setTruth] = useState<HomeTruth | null>(null);
-  const [setup, setSetup] = useState<SetupState | null>(null);
-  const [questHidden, setQuestHidden] = useState(false);
+export default async function DashboardPage() {
+  // Sequential on purpose: the one-truth read is a long chain on a single
+  // pooled connection (#79) — a concurrent second request only starves the
+  // pool and risks P2024 on whichever loses.
+  const truth = await getHomeTruth();
+  // The proxy already gates /dashboard; a null truth means the session
+  // evaporated between the proxy and this render.
+  if (!truth) redirect("/auth/login");
+  const setup = await getSetupState();
 
-  useEffect(() => {
-    if (!authLoading && isAuthenticated) {
-      // Sequential on purpose: the one-truth read is a long chain on a
-      // single pooled connection (#79) — a concurrent second request only
-      // starves the pool and risks P2024 on whichever loses.
-      getHomeTruth()
-        .then((data) => setTruth(data))
-        // Shared per-page-load cache: the walk banner's read answers this too.
-        .then(() => getSetupStateCached())
-        .then((data) => setSetup(data));
-    }
-  }, [isAuthenticated, authLoading]);
-
-  // Dismiss-forever (#73): optimistic hide, rollback if the server says no.
-  async function handleDismissQuest() {
-    setQuestHidden(true);
-    const result = await dismissSideQuest();
-    if (result.error) {
-      setQuestHidden(false);
-    } else {
-      invalidateSetupState();
-    }
-  }
-
-  const showSideQuest =
-    setup?.complete === true && !setup.sideQuestDismissed && !questHidden;
+  const showSideQuest = setup?.complete === true && !setup.sideQuestDismissed;
   const showLinkNudge = setup !== null && !setup.hasLinkedAccount;
-  const [milestoneHidden, setMilestoneHidden] = useState(false);
 
-  // One-time celebration (#86): accept or dismiss, optimistic + rollback;
-  // never re-raised either way.
-  async function handleMilestone(decision: "ACCEPTED" | "DISMISSED") {
-    if (!truth?.milestone) return;
-    setMilestoneHidden(true);
-    const result = await decideMilestone({
-      id: truth.milestone.id,
-      decision,
-    });
-    if (result.error) setMilestoneHidden(false);
-  }
-
-  const weather = truth?.weather ?? null;
+  const weather = truth.weather;
   const style = weather ? WEATHER_STYLE[weather.state] : null;
-  const uncategorized = truth?.uncategorizedCount ?? 0;
+  const uncategorized = truth.uncategorizedCount;
 
   return (
     <div className="mx-auto max-w-md flex flex-col min-h-[70vh]">
@@ -98,14 +62,12 @@ export default function DashboardPage() {
 
       {/* The Household Weather hero: state word + one plain sentence +
           exactly one action when non-Steady. Sized so word and action fit
-          one phone screen without scrolling — the hotel-lobby glance. */}
+          one phone screen without scrolling — the hotel-lobby glance.
+          Server-rendered; the entrance is a CSS animation (#109). */}
       {weather && style && (
-        <motion.section
+        <section
           data-weather-state={weather.state}
-          className="flex-1 flex flex-col justify-center text-center py-10"
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
+          className="home-hero-enter flex-1 flex flex-col justify-center text-center py-10"
         >
           <div className={`mx-auto mb-4 h-3 w-3 rounded-full ${style.dot}`} />
           <h1 className={`font-serif text-6xl mb-3 ${style.text}`}>
@@ -122,22 +84,20 @@ export default function DashboardPage() {
               {weather.action.label} →
             </Link>
           )}
-        </motion.section>
+        </section>
       )}
 
       {/* Today's and tomorrow's actionable rows (#79), between the hero
           and the heartbeat. */}
-      {truth && (
-        <TodayStrip
-          rows={truth.strip}
-          todayIso={truth.todayIso}
-          tomorrowIso={truth.tomorrowIso}
-        />
-      )}
+      <TodayStrip
+        rows={truth.strip}
+        todayIso={truth.todayIso}
+        tomorrowIso={truth.tomorrowIso}
+      />
 
       {/* The heartbeat: Safe-to-Spend for the current Pay Period — one
           read for the whole glance (getHomeTruth), no second fetch. */}
-      <SafeToSpendCard data={truth?.heartbeat ?? null} />
+      <SafeToSpendCard data={truth.heartbeat} />
 
       <div className="flex flex-wrap items-center justify-center gap-3 mt-2 mb-6">
         {/* Honesty chip: absent only when the count is truly zero. */}
@@ -170,55 +130,15 @@ export default function DashboardPage() {
 
       {/* The one-time celebration prompt (#86): celebratory, never a nag —
           one Milestone at a time, gone forever once decided. */}
-      {truth?.milestone && !milestoneHidden && (
-        <div
-          data-milestone-prompt
-          className="mb-4 rounded-xl border border-accent-gold/50 bg-accent-gold/10 px-4 py-3 text-center"
-        >
-          <p className="text-sm font-sans font-medium text-text-primary">
-            🎉 {truth.milestone.title}
-          </p>
-          {truth.milestone.detail && (
-            <p className="text-xs font-sans text-text-secondary mt-0.5">
-              {truth.milestone.detail}
-            </p>
-          )}
-          <div className="mt-2 flex items-center justify-center gap-3">
-            <button
-              type="button"
-              onClick={() => handleMilestone("ACCEPTED")}
-              className="rounded-full bg-text-primary px-4 py-1 text-xs font-sans font-medium text-white hover:bg-text-primary/90 transition-colors"
-            >
-              Celebrate it — $
-              {Math.round(truth.milestone.celebrationBudgetCents / 100)} of
-              guilt-free
-            </button>
-            <button
-              type="button"
-              onClick={() => handleMilestone("DISMISSED")}
-              className="text-xs font-sans text-text-secondary hover:text-text-primary transition-colors"
-            >
-              Not this one
-            </button>
-          </div>
-        </div>
-      )}
+      {truth.milestone && <MilestonePrompt milestone={truth.milestone} />}
 
       {/* The one-confirm windfall (#89): the Bonus Plan applied to real
           dollars — one calm decision, oldest Moment first. */}
-      {truth?.bonus?.moment && (
-        <BonusMomentCard
-          // Keyed by Moment: the next windfall must mount fresh — the
-          // previous card's optimistic-hidden state dies with its Moment.
-          key={truth.bonus.moment.id}
-          moment={truth.bonus.moment}
-          onDecided={() => getHomeTruth().then((data) => setTruth(data))}
-        />
-      )}
+      {truth.bonus?.moment && <BonusMomentSection moment={truth.bonus.moment} />}
 
       {/* Planned → moved, gently (#89): one line after ~7 quiet days,
           never a nag. */}
-      {truth?.bonus?.reminder && (
+      {truth.bonus?.reminder && (
         <p
           data-bonus-reminder
           className="mb-4 text-center text-xs font-sans text-text-secondary"
@@ -229,7 +149,7 @@ export default function DashboardPage() {
 
       {/* The quiet payday banner (#81): a raised Date waits without
           nagging; a moved one says where it went. */}
-      {truth?.moneyDate && truth.moneyDate.status !== "COMPLETED" && (
+      {truth.moneyDate && truth.moneyDate.status !== "COMPLETED" && (
         <Link
           href="/dashboard/money-date"
           data-money-date-banner
@@ -262,32 +182,7 @@ export default function DashboardPage() {
       {/* The "know yourselves" side-quest (#73): offered once, post-setup,
           dismissible forever (it moves to Settings). Never inside setup,
           never nagging. */}
-      {showSideQuest && (
-        <div
-          data-side-quest
-          className="mb-6 rounded-xl border border-bg-secondary bg-white px-4 py-3"
-        >
-          <p className="text-sm font-sans text-text-primary">
-            When you have 20 calm minutes: the know-yourselves pair — your
-            Money Scripts and Money Type.
-          </p>
-          <div className="mt-2 flex items-center gap-4">
-            <Link
-              href="/flow/scripts"
-              className="text-sm font-sans font-medium text-accent-gold hover:underline"
-            >
-              Start the side-quest →
-            </Link>
-            <button
-              type="button"
-              onClick={handleDismissQuest}
-              className="text-xs font-sans text-text-secondary hover:text-text-primary transition-colors"
-            >
-              Not now — don&apos;t ask again
-            </button>
-          </div>
-        </div>
-      )}
+      {showSideQuest && <SideQuestCard />}
     </div>
   );
 }
