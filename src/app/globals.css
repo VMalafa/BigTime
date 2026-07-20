@@ -62,6 +62,60 @@ body {
   border-radius: 4px;
 }
 
+/* The Card primitive's entrance (#109): framer-motion's fade-up as pure
+   CSS — as a shared primitive it dragged the library into every route. */
+@keyframes card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.card-enter {
+  animation: card-enter 0.3s ease-out both;
+}
+
+/* Landing reveals (#109): the scroll-reveal fade-up as pure CSS. The hero
+   animates on load (staggered by the -1/-2 modifiers); below-fold
+   sections reveal on scroll entry where scroll-driven animations are
+   supported, and simply render where they are not. */
+@keyframes reveal-up {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.reveal-load {
+  animation: reveal-up 0.5s ease-out both;
+}
+
+.reveal-load-1 {
+  animation-delay: 0.15s;
+}
+
+.reveal-load-2 {
+  animation-delay: 0.3s;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .reveal-scroll {
+      animation: reveal-up linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 40%;
+    }
+  }
+}
+
 /* The Home hero's entrance (#109): the framer-motion fade-up as pure CSS,
    so the hero server-renders into the initial HTML. */
 @keyframes home-hero-enter {
