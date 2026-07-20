@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/auth/request-user";
 import { getAnthropicClient, generateAIResponse } from "@/lib/ai/client";
+import { anthropicModel } from "@/lib/ai/config";
 import { COUPLES_COUNSELOR_PROMPT } from "@/lib/ai/prompts";
 import type { CouplesRequest } from "@/lib/ai/types";
 
@@ -38,7 +39,9 @@ ${data.moneyRules?.length ? `- Money Rules:\n${data.moneyRules.map((r) => `  •
       ];
 
       const response = await anthropic.messages.create({
-        model: "claude-sonnet-4-20250514",
+        // Central model config (#57/#109): the multi-turn branch was the
+        // one call site still pinning a (now-deprecated) model id.
+        model: anthropicModel(),
         max_tokens: 1024,
         system: `${COUPLES_COUNSELOR_PROMPT}\n\n${context}`,
         messages,

@@ -134,7 +134,7 @@ export function JointCSPSliders({
         }`}
       >
         {isOver
-          ? `Over budget by ${totalPercent - 100}%`
+          ? `Over-allocated by ${totalPercent - 100}%`
           : totalPercent === 100
             ? "Perfectly balanced!"
             : `${100 - totalPercent}% unallocated`}

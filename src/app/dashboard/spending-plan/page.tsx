@@ -215,9 +215,10 @@ export default function SpendingPlanPage() {
                 isOver ? "text-error" : "text-warning"
               }`}
             >
-              {isOver ? "Over budget" : "Under budget"} by{" "}
-              {formatPercent(Math.abs(delta))} (
-              {formatCurrency((Math.abs(delta) / 100) * totalIncome)})
+              {isOver
+                ? `Over-allocated by ${formatPercent(Math.abs(delta))}`
+                : `${formatPercent(Math.abs(delta))} still unallocated`}{" "}
+              ({formatCurrency((Math.abs(delta) / 100) * totalIncome)})
             </p>
             <p className="text-sm text-text-secondary mt-1">
               Adjust Savings, Investments, or Guilt-Free to reach 100%, or tap
