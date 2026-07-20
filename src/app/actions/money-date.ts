@@ -62,11 +62,22 @@ export async function ensureMoneyDateRaised(
   const periodStart = new Date(
     `${heartbeat.periodStart.slice(0, 10)}T00:00:00.000Z`
   );
-  const row = await prisma.moneyDate.upsert({
+  // Conditional write (#109): opening Home is a read — the raise writes
+  // only the one time per Pay Period the Date doesn't exist yet. The
+  // create races only another raise of the same natural key, so a
+  // unique-violation loser just reads the winner's row.
+  let row = await prisma.moneyDate.findUnique({
     where: { userId_periodStart: { userId, periodStart } },
-    update: {},
-    create: { userId, periodStart },
   });
+  if (!row) {
+    row = await prisma.moneyDate
+      .create({ data: { userId, periodStart } })
+      .catch(() =>
+        prisma.moneyDate.findUniqueOrThrow({
+          where: { userId_periodStart: { userId, periodStart } },
+        })
+      );
+  }
   return {
     id: row.id,
     periodStart: row.periodStart.toISOString().slice(0, 10),

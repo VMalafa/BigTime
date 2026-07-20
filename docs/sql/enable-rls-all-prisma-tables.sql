@@ -37,3 +37,6 @@ ALTER TABLE "Milestone" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "BonusPlan" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "BonusMoment" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "BonusMove" ENABLE ROW LEVEL SECURITY;
+
+-- HeartbeatSnapshot (#109): created after the survey; same deny-all rule.
+ALTER TABLE "HeartbeatSnapshot" ENABLE ROW LEVEL SECURITY;
