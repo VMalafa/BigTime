@@ -57,6 +57,36 @@ test("payday raises the Date; travel shift moves it; timeline reads moved-not-sk
 test("eight cards (first of month, Moment month) to kept in ≤11 taps; archive holds the Date and the Check-In pre-history", async ({
   page,
 }) => {
+  // The Spotlight ensure-step below can retry, and the ritual walk is a
+  // long tap sequence over heavy reads — the 90s default starves it.
+  test.setTimeout(240_000);
+
+  // The closing card asserts the real Spotlight is E2E Hawaii. That used
+  // to be assumed from goals-smoke's final state — a cross-file
+  // dependency a late-committing setSpotlight(Boat) write poisoned twice
+  // (#109). Make the premise explicit: ensure Hawaii holds the Spotlight
+  // before walking the ritual, re-tapping only if it doesn't stick
+  // (bonus-smoke's self-healing idiom).
+  await page.goto("/dashboard/goals");
+  await expect(async () => {
+    const hawaii = page.locator("[data-goal='E2E Hawaii']");
+    await expect(hawaii).toBeVisible({ timeout: 20_000 });
+    const makeSpotlight = hawaii.getByRole("button", {
+      name: "Make Spotlight",
+    });
+    if (await makeSpotlight.isVisible().catch(() => false)) {
+      await makeSpotlight.click();
+      await hawaii
+        .getByRole("button", { name: /Confirm — the slice moves with it/ })
+        .click();
+      await page.waitForLoadState("networkidle");
+    }
+    await page.reload();
+    await expect(
+      hawaii.getByText("Spotlight", { exact: true })
+    ).toBeVisible({ timeout: 20_000 });
+  }).toPass({ timeout: 120_000 });
+
   await page.goto("/dashboard/money-date");
 
   // Card 1: Weather recap — a real state word, live-derived. The fixture
