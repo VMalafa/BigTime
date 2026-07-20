@@ -134,6 +134,12 @@ test("Milestones celebrate one at a time, never re-raise; Spotlight switches in 
     .getByRole("button", { name: /Confirm — the slice moves with it/ })
     .click(); // tap 2
   await expect(boat).toContainText("Spotlight", { timeout: 20_000 });
+  // Let this switch's round trip land before switching back: the badge
+  // above is optimistic, and a queued setSpotlight(Boat) completing late
+  // would re-spotlight Boat AFTER the switch-back below — poisoning the
+  // downstream money-date closing card while every assert here passes
+  // (#109).
+  await page.waitForLoadState("networkidle");
 
   // The switch back: the badge render is optimistic, and a dropped action
   // POST (the #13 race, write edition) would leave Boat spotlighted

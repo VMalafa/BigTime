@@ -74,7 +74,11 @@ test("lead-time states: one loud escalation, quiet siblings, Done quiets immedia
   ).toContainText("E2E Second Renewal");
 
   // The handled state survived the awaited action: reload shows it from
-  // server truth (poll — the write races a same-tick reload, #13).
+  // server truth (poll — the write races a same-tick reload, #13). Let
+  // the write's round trip finish first: a reload that lands while the
+  // action's fetch is in flight aborts it, and the write is gone for
+  // good — no amount of polling brings it back (#109).
+  await page.waitForLoadState("networkidle");
   await expect(async () => {
     await page.reload();
     await expect(
