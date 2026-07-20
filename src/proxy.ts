@@ -7,8 +7,16 @@ export async function proxy(request: NextRequest) {
   return await updateSession(request);
 }
 
+// Authenticated surfaces only (#109): the public landing page, auth pages,
+// calculator, API routes, and static assets bypass the proxy entirely —
+// the marketing surface is as fast as a static page. Server-action POSTs
+// target their page's URL, so writes under these prefixes still get the
+// session-refresh behavior.
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/dashboard/:path*",
+    "/partner/:path*",
+    "/settings/:path*",
+    "/flow/:path*",
   ],
 };
