@@ -17,6 +17,29 @@ test.skip(
   "Home smoke needs the seeded fixture household: run with E2E_SEED_FIXTURE=1 (writes an isolated e2e-spending-* household to the shared DB)."
 );
 
+// #109: server-first Home — the truth must arrive in the initial HTML
+// document, not be assembled client-side after hydration. A raw
+// authenticated GET (no JavaScript execution at all) must already carry
+// the rendered hero and heartbeat. This pins the core optimization so it
+// cannot silently regress into a client waterfall.
+test("home's initial HTML is server-rendered with the truth", async ({
+  page,
+}) => {
+  await page.goto("/auth/login");
+  await page.getByLabel("Email").fill(E2E_SPENDING_EMAIL);
+  await page.getByLabel("Password").fill(e2eSpendingPassword());
+  await page.getByRole("button", { name: "Sign In", exact: true }).click();
+  await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 });
+
+  // page.request shares the context's auth cookies but runs no scripts:
+  // whatever is in this body came from the server render alone.
+  const response = await page.request.get("/dashboard");
+  expect(response.ok()).toBe(true);
+  const html = await response.text();
+  expect(html).toContain("data-weather-state");
+  expect(html).toContain("Safe-to-Spend");
+});
+
 test("home renders hero + heartbeat + honest chip + door, and nothing else", async ({
   page,
 }) => {
