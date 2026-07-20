@@ -57,6 +57,10 @@ ${creditSection}`;
     const content = await generateAIResponse(PLAN_REVIEW_PROMPT, userMessage);
     return NextResponse.json({ content });
   } catch (error) {
+    // Diagnosable failures (#109): log with context before the generic 500.
+    console.error("[ai/plan-review] request failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { content: "", error: "Failed to generate plan review" },
       { status: 500 }

@@ -63,3 +63,43 @@ export function createEntityCache<T>(initial: T): EntityCache<T> {
       ),
   };
 }
+
+/** Outcome of an awaited per-intent action, normalized for runOptimistic:
+ * an app-level refusal ({error}) or the confirmed server value. */
+export type OptimisticOutcome<V> = { error: string } | { value: V };
+
+/**
+ * The optimistic snapshot→mutate→rollback shape (#109), extracted once:
+ * apply the optimistic update, run the awaited action, roll the cache back
+ * to the snapshot on failure — an app-level {error} OR a thrown fetch (a
+ * dropped request must never leave the optimistic state standing while the
+ * server disagrees) — and apply the confirmed update on success.
+ */
+export async function runOptimistic<T, V>(options: {
+  cache: EntityCache<T>;
+  optimistic: (state: T) => T;
+  action: () => Promise<OptimisticOutcome<V>>;
+  confirm?: (state: T, value: V) => T;
+  onError: (message: string) => void;
+}): Promise<boolean> {
+  const snapshot = options.cache.get();
+  options.cache.set(options.optimistic);
+
+  let outcome: OptimisticOutcome<V>;
+  try {
+    outcome = await options.action();
+  } catch {
+    outcome = { error: "That didn't save — try again." };
+  }
+
+  if ("error" in outcome) {
+    options.cache.set(snapshot);
+    options.onError(outcome.error);
+    return false;
+  }
+  if (options.confirm) {
+    const { value } = outcome;
+    options.cache.set((state) => options.confirm!(state, value));
+  }
+  return true;
+}

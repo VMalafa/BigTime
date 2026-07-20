@@ -38,6 +38,10 @@ ${data.moneyType ? `\nMy Money Type: ${data.moneyType}` : ""}`;
     );
     return NextResponse.json({ content });
   } catch (error) {
+    // Diagnosable failures (#109): log with context before the generic 500.
+    console.error("[ai/monthly-checkin] request failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { content: "", error: "Failed to generate check-in response" },
       { status: 500 }
