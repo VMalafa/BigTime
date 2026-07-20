@@ -8,7 +8,6 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { createClient } from "@/lib/supabase/server";
 import { parseIcsCalendar } from "@/lib/timeline/ics";
 import { diffAgainstExisting } from "@/lib/timeline/ingestion";
 import { normalizeEventTitle } from "@/lib/timeline/natural-key";
@@ -23,18 +22,11 @@ import {
   type ExtractedEvent,
   type ExtractionResult,
 } from "@/lib/timeline/extraction";
+import { getRequestUserId } from "@/lib/auth/request-user";
 
 const CALENDAR_PATH = "/dashboard/calendar";
 const MAX_ICS_BYTES = 1_000_000;
 const MANUAL_SOURCE_NAME = "Manual entries";
-
-async function requireUserId(): Promise<string | null> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user?.id ?? null;
-}
 
 export interface ImportIcsResult {
   ok: true;
@@ -54,7 +46,7 @@ export async function importIcsCalendar(input: {
   fileName: string;
   icsText: string;
 }): Promise<ImportIcsResult | { error: string }> {
-  const userId = await requireUserId();
+  const userId = await getRequestUserId();
   if (!userId) return { error: "Not signed in." };
 
   if (input.icsText.length > MAX_ICS_BYTES) {
@@ -144,7 +136,7 @@ export type ManualEventInput = Omit<CreateEventInput, "calendarSourceId" | "stat
  * vocabulary — the app never forces a universal Event taxonomy.
  */
 export async function createManualEvent(input: ManualEventInput) {
-  const userId = await requireUserId();
+  const userId = await getRequestUserId();
   if (!userId) return { error: "Not signed in." } as const;
 
   const category = input.category.trim();
@@ -212,7 +204,7 @@ export async function extractCalendarEvents(input: {
   /** e.g. "2026-27" — carried in the prompt for year inference. */
   academicYearHint: string;
 }): Promise<{ ok: true; extraction: ExtractionResult } | { error: string }> {
-  const userId = await requireUserId();
+  const userId = await getRequestUserId();
   if (!userId) return { error: "Not signed in." };
 
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -290,7 +282,7 @@ export async function importExtractedEvents(input: {
   categories: string[];
   events: ExtractedEvent[];
 }): Promise<ImportIcsResult | { error: string }> {
-  const userId = await requireUserId();
+  const userId = await getRequestUserId();
   if (!userId) return { error: "Not signed in." };
   if (input.events.length === 0) return { error: "Nothing to import." };
 

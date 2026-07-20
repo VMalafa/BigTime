@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { createClient } from "@/lib/supabase/server";
+import { getRequestUserId } from "@/lib/auth/request-user";
 
 export type AutomationCategoryValue =
   | "BILL_PAY"
@@ -18,16 +18,8 @@ export interface AutomationItemData {
   category: AutomationCategoryValue;
 }
 
-async function getUserId(): Promise<string | null> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user?.id ?? null;
-}
-
 export async function loadAutomationItems(): Promise<AutomationItemData[]> {
-  const userId = await getUserId();
+  const userId = await getRequestUserId();
   if (!userId) return [];
 
   const items = await prisma.automationItem.findMany({
@@ -49,7 +41,7 @@ export async function addAutomationItem(input: {
   description?: string;
   category: AutomationCategoryValue;
 }) {
-  const userId = await getUserId();
+  const userId = await getRequestUserId();
   if (!userId) return null;
 
   const item = await prisma.automationItem.create({
@@ -72,7 +64,7 @@ export async function addAutomationItem(input: {
 }
 
 export async function toggleAutomationItem(id: string, isCompleted: boolean) {
-  const userId = await getUserId();
+  const userId = await getRequestUserId();
   if (!userId) return;
 
   await prisma.automationItem.updateMany({
@@ -82,7 +74,7 @@ export async function toggleAutomationItem(id: string, isCompleted: boolean) {
 }
 
 export async function removeAutomationItem(id: string) {
-  const userId = await getUserId();
+  const userId = await getRequestUserId();
   if (!userId) return;
 
   await prisma.automationItem.deleteMany({

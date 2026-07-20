@@ -4,7 +4,6 @@
 // it reflects the latest sync each time the dashboard loads.
 
 import { prisma } from "@/lib/prisma";
-import { createClient } from "@/lib/supabase/server";
 import { detectRecurringPatterns } from "@/lib/recurring/pattern-engine";
 import {
   computeSafeToSpend,
@@ -14,6 +13,7 @@ import {
 } from "@/lib/heartbeat/pay-period";
 import { computeManualHeartbeat } from "@/lib/heartbeat/manual";
 import { sliceEarmark } from "@/lib/goals/engine";
+import { getRequestUser } from "@/lib/auth/request-user";
 
 const LOOKBACK_MS = 180 * 24 * 60 * 60 * 1000;
 
@@ -36,10 +36,7 @@ export interface HeartbeatData {
 }
 
 export async function getHeartbeat(): Promise<HeartbeatData> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getRequestUser();
   if (!user) return { available: false, reason: "Not signed in." };
 
   const confirmedStreams = await prisma.proposalDecision.findMany({

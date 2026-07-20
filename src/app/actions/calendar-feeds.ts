@@ -7,17 +7,9 @@
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { createClient } from "@/lib/supabase/server";
+import { getRequestUserId } from "@/lib/auth/request-user";
 
 const SETTINGS_PATH = "/dashboard/settings";
-
-async function requireUserId(): Promise<string | null> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user?.id ?? null;
-}
 
 /** 32 random bytes, base64url — the shape parseFeedPath expects. */
 function mintToken(): string {
@@ -63,7 +55,7 @@ export async function listCalendarFeeds(): Promise<
   | { feeds: CalendarFeedData[]; sources: FeedScopeOption[] }
   | { error: string }
 > {
-  const userId = await requireUserId();
+  const userId = await getRequestUserId();
   if (!userId) return { error: "Not signed in." };
 
   const [feeds, sources] = await Promise.all([
@@ -86,7 +78,7 @@ export async function createCalendarFeed(input: {
   /** null = whole Household Timeline; else a Calendar Source id. */
   calendarSourceId: string | null;
 }): Promise<{ feed: CalendarFeedData } | { error: string }> {
-  const userId = await requireUserId();
+  const userId = await getRequestUserId();
   if (!userId) return { error: "Not signed in." };
 
   if (input.calendarSourceId) {
@@ -114,7 +106,7 @@ export async function createCalendarFeed(input: {
 export async function rotateCalendarFeed(input: {
   id: string;
 }): Promise<{ feed: CalendarFeedData } | { error: string }> {
-  const userId = await requireUserId();
+  const userId = await getRequestUserId();
   if (!userId) return { error: "Not signed in." };
 
   const existing = await prisma.calendarFeedToken.findFirst({
@@ -137,7 +129,7 @@ export async function rotateCalendarFeed(input: {
 export async function revokeCalendarFeed(input: {
   id: string;
 }): Promise<{ ok: true } | { error: string }> {
-  const userId = await requireUserId();
+  const userId = await getRequestUserId();
   if (!userId) return { error: "Not signed in." };
 
   const { count } = await prisma.calendarFeedToken.deleteMany({

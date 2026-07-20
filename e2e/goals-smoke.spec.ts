@@ -78,6 +78,11 @@ test("Milestones celebrate one at a time, never re-raise; Spotlight switches in 
   // read — one prompt at a time, oldest first.
   const prompt = page.locator("[data-milestone-prompt]");
   await expect(prompt).toBeVisible({ timeout: 20_000 });
+  // The prompt is server-rendered into the initial HTML (#109); a click
+  // that lands before React hydrates dispatches into dead markup and the
+  // decide write silently never fires — the same race as the dial fill
+  // in flow-smoke. Let hydration and the mount reads settle first.
+  await page.waitForLoadState("networkidle");
   await expect(prompt).toHaveCount(1);
   await expect(prompt).toContainText("E2E Hawaii is 10% funded");
   await prompt.getByRole("button", { name: /Celebrate it/ }).click();

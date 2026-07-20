@@ -8,7 +8,6 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { createClient } from "@/lib/supabase/server";
 import {
   DEFAULT_BONUS_PLAN,
   splitBonus,
@@ -30,6 +29,7 @@ import { filterPaycheckDeposits } from "@/lib/heartbeat/pay-period";
 import { detectRecurringPatterns } from "@/lib/recurring/pattern-engine";
 import { goalProgressCents } from "@/lib/goals/engine";
 import { calculateBonusNet } from "@/lib/calculations/bonus-tax";
+import { getRequestUserId } from "@/lib/auth/request-user";
 
 const LOOKBACK_MS = 180 * 24 * 60 * 60 * 1000;
 const TRANSFER_LOOKBACK_MS = 60 * 24 * 60 * 60 * 1000;
@@ -38,14 +38,6 @@ const PATHS = ["/dashboard", "/dashboard/money-date", "/dashboard/income"];
 
 function revalidateAll() {
   for (const path of PATHS) revalidatePath(path);
-}
-
-async function requireUserId(): Promise<string | null> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user?.id ?? null;
 }
 
 // --- The standing split ---------------------------------------------------
@@ -69,7 +61,7 @@ async function readPlan(userId: string): Promise<BonusPlanData> {
 }
 
 export async function getBonusPlan(): Promise<BonusPlanData | null> {
-  const userId = await requireUserId();
+  const userId = await getRequestUserId();
   if (!userId) return null;
   return readPlan(userId);
 }
@@ -77,7 +69,7 @@ export async function getBonusPlan(): Promise<BonusPlanData | null> {
 export async function saveBonusPlan(
   input: BonusSplitPercents
 ): Promise<{ ok?: boolean; error?: string }> {
-  const userId = await requireUserId();
+  const userId = await getRequestUserId();
   if (!userId) return { error: "Not signed in." };
   const invalid = validateBonusPlan(input);
   if (invalid) return { error: invalid };
@@ -179,7 +171,7 @@ export interface BonusGlance {
  * public endpoints and must never take a caller-supplied userId.
  */
 export async function getBonusGlance(): Promise<BonusGlance | null> {
-  const userId = await requireUserId();
+  const userId = await getRequestUserId();
   if (!userId) return null;
   const now = new Date();
 
@@ -355,7 +347,7 @@ export async function confirmBonusMoment(input: {
   id: string;
   override?: BonusSplitPercents;
 }): Promise<{ ok?: boolean; error?: string }> {
-  const userId = await requireUserId();
+  const userId = await getRequestUserId();
   if (!userId) return { error: "Not signed in." };
   if (input.override) {
     const invalid = validateBonusPlan(input.override);
@@ -414,7 +406,7 @@ export async function confirmBonusMoment(input: {
 export async function dismissBonusMoment(input: {
   id: string;
 }): Promise<{ ok?: boolean; error?: string }> {
-  const userId = await requireUserId();
+  const userId = await getRequestUserId();
   if (!userId) return { error: "Not signed in." };
   const updated = await prisma.bonusMoment.updateMany({
     where: { id: input.id, userId, status: "RAISED" },
@@ -433,7 +425,7 @@ export async function recordManualBonus(input: {
   amountCents: number;
   description: string;
 }): Promise<{ ok?: boolean; error?: string }> {
-  const userId = await requireUserId();
+  const userId = await getRequestUserId();
   if (!userId) return { error: "Not signed in." };
   if (!Number.isInteger(input.amountCents) || input.amountCents <= 0) {
     return { error: "Enter the real amount that landed." };
@@ -462,7 +454,7 @@ export interface LegacyBonusItem {
 
 /** Pre-#89 BonusItem rows, surfaced once for confirm-or-dismiss. */
 export async function listLegacyBonusItems(): Promise<LegacyBonusItem[]> {
-  const userId = await requireUserId();
+  const userId = await getRequestUserId();
   if (!userId) return [];
   const rows = await prisma.bonusItem.findMany({
     where: { profile: { userId }, resolvedAt: null },
@@ -483,7 +475,7 @@ export async function resolveLegacyBonusItem(input: {
   id: string;
   decision: "MIGRATE" | "DISMISS";
 }): Promise<{ ok?: boolean; error?: string }> {
-  const userId = await requireUserId();
+  const userId = await getRequestUserId();
   if (!userId) return { error: "Not signed in." };
 
   const item = await prisma.bonusItem.findFirst({
@@ -525,7 +517,7 @@ export async function resolveLegacyBonusItem(input: {
 /** The Bonus Plan tune-up card joins the deep agenda only in months where
  * a Moment actually fired — reflection has a rhythm, not a backlog. */
 export async function bonusMomentFiredThisMonth(): Promise<boolean> {
-  const userId = await requireUserId();
+  const userId = await getRequestUserId();
   if (!userId) return false;
   const now = new Date();
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));

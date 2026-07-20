@@ -1,6 +1,7 @@
 import type { User } from "@supabase/supabase-js";
 
 import { createClient } from "@/lib/supabase/server";
+import { getRequestUser } from "@/lib/auth/request-user";
 
 // Bank-data access guard (ADR-0002): every route/server action that reads or
 // mutates aggregator connections, linked accounts, or feed transactions must
@@ -19,11 +20,12 @@ export interface BankDataAccess {
 }
 
 export async function getBankDataAccess(): Promise<BankDataAccess> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // The user comes from the request-scoped guard (#109); the MFA
+  // assurance-level read below stays a per-call check — bank-data actions
+  // must always confront the live session, not a memo.
+  const user = await getRequestUser();
   if (!user) return { user: null, mfaState: "unauthenticated" };
+  const supabase = await createClient();
 
   const { data, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
   if (error || !data) return { user, mfaState: "needs-enrollment" };

@@ -8,7 +8,6 @@
 
 import type { $Enums } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { createClient } from "@/lib/supabase/server";
 import { getActiveProfileId } from "@/lib/active-profile";
 import {
   addFixedCostLineItem,
@@ -25,16 +24,9 @@ import {
   type TieredFixedCostProposals,
 } from "@/lib/proposals/proposals";
 import { isCspBucket } from "@/lib/categorization/corrections";
+import { getRequestUser } from "@/lib/auth/request-user";
 
 const LOOKBACK_MS = 180 * 24 * 60 * 60 * 1000;
-
-async function requireUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user;
-}
 
 export interface FlowProposals {
   linked: boolean;
@@ -53,7 +45,7 @@ export async function getFlowProposals(): Promise<FlowProposals> {
     debts: [],
     income: [],
   };
-  const user = await requireUser();
+  const user = await getRequestUser();
   if (!user) return empty;
 
   const accounts = await prisma.linkedAccount.findMany({
@@ -168,7 +160,7 @@ export async function getFlowProposals(): Promise<FlowProposals> {
 export async function confirmFixedCostProposals(
   merchantPatterns: string[]
 ): Promise<{ ok?: boolean; plan?: SpendingPlanData; error?: string }> {
-  const user = await requireUser();
+  const user = await getRequestUser();
   if (!user) return { error: "Not signed in." };
   if (merchantPatterns.length === 0) return { error: "Nothing to confirm." };
 
@@ -248,7 +240,7 @@ export interface ConfirmedIncomeSource {
 export async function confirmIncomeProposal(
   merchantPattern: string
 ): Promise<{ ok?: boolean; incomeSource?: ConfirmedIncomeSource; error?: string }> {
-  const user = await requireUser();
+  const user = await getRequestUser();
   if (!user) return { error: "Not signed in." };
 
   // Re-derive the Proposal server-side so the created IncomeSource carries
@@ -307,7 +299,7 @@ export async function dismissProposal(
   kind: "FIXED_COST" | "DEBT" | "INCOME",
   key: string
 ): Promise<{ ok?: boolean; error?: string }> {
-  const user = await requireUser();
+  const user = await getRequestUser();
   if (!user) return { error: "Not signed in." };
 
   await prisma.proposalDecision.upsert({
@@ -344,7 +336,7 @@ export interface ConfirmedDebt {
 export async function confirmDebtProposal(
   input: DebtConfirmationInput
 ): Promise<{ debt?: ConfirmedDebt; error?: string }> {
-  const user = await requireUser();
+  const user = await getRequestUser();
   if (!user) return { error: "Not signed in." };
 
   const account = await prisma.linkedAccount.findFirst({
