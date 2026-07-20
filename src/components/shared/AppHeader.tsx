@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useAuth } from "@/lib/hooks/useAuth";
+import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 import { ProfileSwitcher } from "@/components/shared/ProfileSwitcher";
 import { signOut } from "@/app/actions/auth";
-import { useEffect, useState } from "react";
 import { getActiveProfile } from "@/app/actions/profile";
 import { useFlowStore } from "@/lib/store/flow-store";
 
@@ -12,29 +12,49 @@ import { useFlowStore } from "@/lib/store/flow-store";
 // layer's retirement (#48) — a one-time cleanup per browser.
 const DRAFT_CLEARED_KEY = "rich-life-flow-draft-cleared";
 
+// The header renders with the page (#109): the bar itself is in the
+// server HTML — it no longer returns null until auth resolves, so the
+// layout never visibly shifts. The auth affordances resolve from the
+// LOCAL cookie-backed session (no auth-server round trip): they are
+// links, not a security boundary — every server action verifies the
+// session for real. Reading the session on the server here was rejected
+// deliberately: the header lives in the root layout, and a cookies()
+// read there would flip every statically-prerendered route (including
+// the landing, #109 WS6) to dynamic rendering.
 export function AppHeader() {
-  const { isAuthenticated, loading } = useAuth();
+  const [authed, setAuthed] = useState<boolean | null>(null);
   const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (isAuthenticated) {
+    const supabase = createClient();
+    supabase.auth
+      .getSession()
+      .then(({ data }) => setAuthed(data.session !== null));
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) =>
+      setAuthed(session !== null)
+    );
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (authed) {
       getActiveProfile().then((profile) => {
         if (profile) setActiveProfileId(profile.id);
       });
     }
-  }, [isAuthenticated]);
+  }, [authed]);
 
   // Signup-first (#48): an anonymous-era draft may still sit in
   // localStorage. The DB rows stand as truth, so the draft is cleared once
   // on the first authed visit and never migrated or hydrated.
   useEffect(() => {
-    if (isAuthenticated && !localStorage.getItem(DRAFT_CLEARED_KEY)) {
+    if (authed && !localStorage.getItem(DRAFT_CLEARED_KEY)) {
       useFlowStore.persist.clearStorage();
       localStorage.setItem(DRAFT_CLEARED_KEY, "1");
     }
-  }, [isAuthenticated]);
-
-  if (loading) return null;
+  }, [authed]);
 
   return (
     <header className="border-b border-bg-secondary bg-white">
@@ -47,7 +67,7 @@ export function AppHeader() {
         </Link>
 
         <div className="flex items-center gap-4">
-          {isAuthenticated && (
+          {authed === true && (
             <>
               <ProfileSwitcher activeProfileId={activeProfileId} />
               <Link
@@ -75,7 +95,7 @@ export function AppHeader() {
               </form>
             </>
           )}
-          {!isAuthenticated && (
+          {authed === false && (
             <Link
               href="/auth/login"
               className="text-sm text-text-secondary hover:text-text-primary transition-colors"
