@@ -115,8 +115,11 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      {/* Main content */}
-      <main className="flex-1 md:ml-64 bg-bg-primary min-h-screen pb-20 md:pb-0">
+      {/* Main content. min-w-0: as a flex item, main's default min-width:auto
+          refuses to shrink below its widest nowrap content — a long bank-feed
+          description in a truncate row would force the whole page to ~900px
+          on a phone (horizontal scroll, nothing wraps). */}
+      <main className="flex-1 min-w-0 md:ml-64 bg-bg-primary min-h-screen pb-20 md:pb-0">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* The One Flow (#73): a thin guided layer over these canonical
               pages while setup is incomplete; gone once Safe-to-Spend
