@@ -1,15 +1,18 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRef, useState, useTransition } from "react";
 import { correctTransaction } from "@/app/actions/corrections";
 import { FIXED_COST_CATEGORIES } from "@/lib/constants/csp-ranges";
 import { MONEY_DIALS } from "@/lib/constants/money-dials";
 import type { CorrectionInput } from "@/lib/categorization/corrections";
 
 // Inline Corrections (CONTEXT.md): tap a transaction, pick the bucket, then
-// the Money Dial / fixed-cost category as applicable. Saved optimistically —
-// the row updates immediately while the rule writes in the background.
+// the Money Dial / fixed-cost category as applicable. Every tap that fully
+// specifies a Categorization saves immediately — there is no separate Save
+// button to hunt for. Saved optimistically — the row updates in place and
+// stays in its section for the rest of the session, so a batch of
+// corrections never scrolls out from under the person making them. A failed
+// save reopens the row's picker with the error shown at the row itself.
 
 export interface CorrectableRow {
   id: string;
@@ -28,9 +31,16 @@ const BUCKET_OPTIONS = [
 
 type BucketKey = (typeof BUCKET_OPTIONS)[number]["key"] | "TRANSFER";
 
-function optionLabel(bucket: BucketKey, second: string | null): string {
+// Buckets with a second-level Categorization step; the rest save on first tap.
+const TWO_LEVEL_BUCKETS: readonly BucketKey[] = ["GUILT_FREE", "FIXED_COSTS"];
+
+function bucketLabel(bucket: BucketKey): string {
   if (bucket === "TRANSFER") return "Transfer between your accounts";
-  const base = BUCKET_OPTIONS.find((b) => b.key === bucket)?.label ?? bucket;
+  return BUCKET_OPTIONS.find((b) => b.key === bucket)?.label ?? bucket;
+}
+
+function optionLabel(bucket: BucketKey, second: string | null): string {
+  const base = bucketLabel(bucket);
   if (bucket === "GUILT_FREE" && second) {
     return `${base} · ${MONEY_DIALS.find((d) => d.category === second)?.name ?? second}`;
   }
@@ -40,12 +50,11 @@ function optionLabel(bucket: BucketKey, second: string | null): string {
   return base;
 }
 
+// Momentary action, not a toggle: tapping a chip is the save itself.
 function Chip({
-  active,
   onClick,
   children,
 }: {
-  active: boolean;
   onClick: () => void;
   children: React.ReactNode;
 }) {
@@ -53,12 +62,7 @@ function Chip({
     <button
       type="button"
       onClick={onClick}
-      aria-pressed={active}
-      className={`px-2.5 py-1 rounded-full text-xs font-sans border transition-colors ${
-        active
-          ? "bg-accent-gold text-white border-accent-gold"
-          : "bg-white text-text-primary border-bg-secondary hover:border-accent-gold"
-      }`}
+      className="min-h-11 px-4 py-2 rounded-full text-sm font-sans border transition-colors bg-white text-text-primary border-bg-secondary hover:border-accent-gold"
     >
       {children}
     </button>
@@ -66,67 +70,104 @@ function Chip({
 }
 
 export function CorrectableTransactionList({ rows }: { rows: CorrectableRow[] }) {
-  const router = useRouter();
   const [, startTransition] = useTransition();
   const [openId, setOpenId] = useState<string | null>(null);
   const [bucket, setBucket] = useState<BucketKey | null>(null);
-  const [second, setSecond] = useState<string | null>(null);
   // Optimistic overrides: row id -> label shown immediately after saving.
   const [saved, setSaved] = useState<Record<string, string>>({});
-  const [error, setError] = useState<string | null>(null);
+  // Failures stay with their row, not at the top of the list.
+  const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
+  // Announced to screen readers; visually the row itself shows the outcome.
+  const [announcement, setAnnouncement] = useState("");
+  const rowButtons = useRef(new Map<string, HTMLButtonElement>());
+
+  function focusRow(rowId: string) {
+    rowButtons.current.get(rowId)?.focus();
+  }
 
   function openPicker(rowId: string) {
     setOpenId(openId === rowId ? null : rowId);
     setBucket(null);
-    setSecond(null);
-    setError(null);
+    setRowErrors((prev) => {
+      if (!(rowId in prev)) return prev;
+      const next = { ...prev };
+      delete next[rowId];
+      return next;
+    });
   }
 
-  function save(row: CorrectableRow) {
-    if (!bucket) return;
+  function closePicker(rowId: string) {
+    setOpenId(null);
+    setBucket(null);
+    focusRow(rowId);
+  }
+
+  // A fully specified choice saves immediately; the picker closes and the
+  // row keeps its place in the current grouping until the next visit.
+  function save(row: CorrectableRow, chosenBucket: BucketKey, second: string | null) {
     const input: CorrectionInput =
-      bucket === "TRANSFER"
+      chosenBucket === "TRANSFER"
         ? { markAsTransfer: true }
         : {
-            cspBucket: bucket,
-            moneyDial: bucket === "GUILT_FREE" ? second : null,
-            fixedCostCategory: bucket === "FIXED_COSTS" ? second : null,
+            cspBucket: chosenBucket,
+            moneyDial: chosenBucket === "GUILT_FREE" ? second : null,
+            fixedCostCategory: chosenBucket === "FIXED_COSTS" ? second : null,
           };
 
-    // Optimistic: reflect the Correction immediately, then persist and
-    // refresh the server-rendered groupings.
-    setSaved((prev) => ({ ...prev, [row.id]: optionLabel(bucket, second) }));
-    setOpenId(null);
+    const label = optionLabel(chosenBucket, second);
+    setSaved((prev) => ({ ...prev, [row.id]: label }));
+    setRowErrors((prev) => {
+      const next = { ...prev };
+      delete next[row.id];
+      return next;
+    });
+    closePicker(row.id);
     startTransition(async () => {
       const result = await correctTransaction(row.id, input);
       if (result.error) {
+        const message = result.error;
         setSaved((prev) => {
           const next = { ...prev };
           delete next[row.id];
           return next;
         });
-        setError(result.error);
+        setRowErrors((prev) => ({ ...prev, [row.id]: message }));
+        setAnnouncement(`Could not save ${row.description}: ${message}`);
+        // Reopen so the retry is one tap away — unless the person has
+        // already moved on to another row's picker.
+        setOpenId((current) => current ?? row.id);
         return;
       }
-      router.refresh();
+      setAnnouncement(`${row.description} saved as ${label}. Rule created.`);
     });
+  }
+
+  function pickBucket(row: CorrectableRow, chosen: BucketKey) {
+    if (TWO_LEVEL_BUCKETS.includes(chosen)) {
+      setBucket(chosen);
+      return;
+    }
+    save(row, chosen, null);
   }
 
   return (
     <div>
-      {error && (
-        <p role="alert" className="text-sm text-error font-sans py-2">
-          {error}
-        </p>
-      )}
+      <p role="status" className="sr-only">
+        {announcement}
+      </p>
       <ul className="divide-y divide-bg-secondary">
         {rows.map((row) => (
           <li key={row.id} className="py-2.5">
             <button
               type="button"
+              ref={(el) => {
+                if (el) rowButtons.current.set(row.id, el);
+                else rowButtons.current.delete(row.id);
+              }}
               onClick={() => openPicker(row.id)}
-              className="flex w-full items-center justify-between gap-3 text-left"
+              className="flex w-full min-h-11 items-center justify-between gap-3 text-left"
               aria-expanded={openId === row.id}
+              aria-controls={`correction-picker-${row.id}`}
             >
               <div className="min-w-0">
                 <p className="font-sans text-sm text-text-primary truncate">
@@ -134,7 +175,7 @@ export function CorrectableTransactionList({ rows }: { rows: CorrectableRow[] })
                 </p>
                 <p className="text-xs text-text-secondary font-sans">
                   {saved[row.id] ? (
-                    <span className="text-accent-gold">
+                    <span className="text-accent-gold-deep">
                       {saved[row.id]} — saved, rule created
                     </span>
                   ) : (
@@ -147,82 +188,97 @@ export function CorrectableTransactionList({ rows }: { rows: CorrectableRow[] })
               </span>
             </button>
 
+            {rowErrors[row.id] && (
+              <p role="alert" className="text-sm text-error font-sans mt-1">
+                {rowErrors[row.id]} — tap a category to try again.
+              </p>
+            )}
+
             {openId === row.id && (
-              <div className="mt-2 rounded-md border border-bg-secondary bg-bg-primary p-3 space-y-2.5">
-                <p className="text-xs font-sans text-text-secondary">
-                  Correct this — it becomes a standing rule for this
-                  merchant.
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {BUCKET_OPTIONS.map((option) => (
-                    <Chip
-                      key={option.key}
-                      active={bucket === option.key}
-                      onClick={() => {
-                        setBucket(option.key);
-                        setSecond(null);
-                      }}
+              <div
+                id={`correction-picker-${row.id}`}
+                className="mt-2 rounded-md border border-bg-secondary bg-bg-primary p-3 space-y-2.5"
+              >
+                {bucket === null ? (
+                  <>
+                    <p className="text-xs font-sans text-text-secondary">
+                      Tap where this belongs — it becomes a standing rule for
+                      this merchant.
+                    </p>
+                    <div
+                      role="group"
+                      aria-label="Category"
+                      className="flex flex-wrap gap-2"
                     >
-                      {option.label}
-                    </Chip>
-                  ))}
-                  {!row.isTransfer && (
-                    <Chip
-                      active={bucket === "TRANSFER"}
-                      onClick={() => {
-                        setBucket("TRANSFER");
-                        setSecond(null);
-                      }}
+                      {BUCKET_OPTIONS.map((option) => (
+                        <Chip
+                          key={option.key}
+                          onClick={() => pickBucket(row, option.key)}
+                        >
+                          {option.label}
+                        </Chip>
+                      ))}
+                      {!row.isTransfer && (
+                        <Chip onClick={() => pickBucket(row, "TRANSFER")}>
+                          Transfer between your accounts
+                        </Chip>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setBucket(null)}
+                        className="min-h-11 px-3 py-2 -ml-3 rounded-md text-sm font-sans text-text-secondary hover:text-text-primary"
+                      >
+                        ‹ Back
+                      </button>
+                      <p className="text-sm font-sans font-medium text-text-primary">
+                        {bucketLabel(bucket)}
+                      </p>
+                    </div>
+                    <div
+                      role="group"
+                      aria-label={
+                        bucket === "GUILT_FREE" ? "Money Dial" : "Fixed cost category"
+                      }
+                      className="flex flex-wrap gap-2"
                     >
-                      Transfer between your accounts
-                    </Chip>
-                  )}
-                </div>
-
-                {bucket === "GUILT_FREE" && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {MONEY_DIALS.map((dial) => (
-                      <Chip
-                        key={dial.category}
-                        active={second === dial.category}
-                        onClick={() => setSecond(dial.category)}
-                      >
-                        {dial.name}
-                      </Chip>
-                    ))}
-                  </div>
+                      {bucket === "GUILT_FREE" &&
+                        MONEY_DIALS.map((dial) => (
+                          <Chip
+                            key={dial.category}
+                            onClick={() => save(row, "GUILT_FREE", dial.category)}
+                          >
+                            {dial.name}
+                          </Chip>
+                        ))}
+                      {bucket === "FIXED_COSTS" &&
+                        FIXED_COST_CATEGORIES.map((category) => (
+                          <Chip
+                            key={category.key}
+                            onClick={() => save(row, "FIXED_COSTS", category.key)}
+                          >
+                            {category.label}
+                          </Chip>
+                        ))}
+                    </div>
+                    {bucket === "GUILT_FREE" && (
+                      <p className="text-xs font-sans text-text-secondary">
+                        Without a dial, Dial Drift can&apos;t count this one.
+                      </p>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => save(row, bucket, null)}
+                      className="min-h-11 px-3 py-2 -ml-3 rounded-md text-sm font-sans text-text-secondary hover:text-text-primary"
+                    >
+                      Save as just {bucketLabel(bucket)}
+                    </button>
+                  </>
                 )}
-                {bucket === "FIXED_COSTS" && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {FIXED_COST_CATEGORIES.map((category) => (
-                      <Chip
-                        key={category.key}
-                        active={second === category.key}
-                        onClick={() => setSecond(category.key)}
-                      >
-                        {category.label}
-                      </Chip>
-                    ))}
-                  </div>
-                )}
-
-                <div className="flex justify-end gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => setOpenId(null)}
-                    className="px-3 py-1.5 rounded-md text-xs font-sans text-text-secondary hover:text-text-primary"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => save(row)}
-                    disabled={!bucket}
-                    className="px-3 py-1.5 rounded-md text-xs font-sans font-medium bg-accent-gold text-white disabled:opacity-40"
-                  >
-                    Save correction
-                  </button>
-                </div>
               </div>
             )}
           </li>
