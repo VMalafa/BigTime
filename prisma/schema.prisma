@@ -33,6 +33,25 @@ model User {
   milestones            Milestone[]
   bonusPlan             BonusPlan?
   bonusMoments          BonusMoment[]
+  heartbeatSnapshot     HeartbeatSnapshot?
+}
+
+// The persisted half of the heartbeat (#109): the expensive pattern
+// detection over the 180-day Transaction window — paycheck filtering and
+// recurring-charge detection — recomputed at every sync. The feed only
+// changes via syncs, so recompute-on-sync keeps the snapshot exactly as
+// fresh as the feed; the Home read revives it with one cheap query.
+// Households with no snapshot yet (never synced) fall back to computing
+// live. RLS: enable on this table before shipping (deny-all, #92) — see
+// docs/sql/enable-rls-all-prisma-tables.sql.
+model HeartbeatSnapshot {
+  userId         String   @id
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  computedAt     DateTime @default(now())
+  /// filterPaycheckDeposits output over the lookback window, dates as ISO.
+  paychecks      Json
+  /// detectRecurringPatterns output over the lookback window, dates as ISO.
+  chargePatterns Json
 }
 
 model Profile {

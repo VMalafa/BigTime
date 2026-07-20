@@ -10,6 +10,7 @@ import {
   getAggregatorProvider,
 } from "@/lib/aggregator/simplefin";
 import { syncConnection, syncConnectionsForUser } from "@/lib/aggregator/sync";
+import { refreshHeartbeatSnapshot } from "@/lib/heartbeat/snapshot";
 import { prisma } from "@/lib/prisma";
 import type { DebtType } from "@prisma/client";
 
@@ -112,6 +113,15 @@ export async function refreshNow(): Promise<ActionResult> {
 
   manualRefreshAttempts.set(user.id, Date.now());
   await syncConnectionsForUser(user.id);
+  // The heartbeat's detection snapshot recomputes at every sync (#109) —
+  // "sync now" must leave it as fresh as the feed it just refreshed. A
+  // failed refresh only means the next Home read computes live.
+  await refreshHeartbeatSnapshot(user.id).catch((error: unknown) => {
+    console.error("[sync-now] heartbeat snapshot refresh failed", {
+      userId: user.id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  });
   revalidatePath(CONNECTIONS_PATH);
   return { success: true };
 }

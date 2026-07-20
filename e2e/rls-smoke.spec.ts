@@ -30,6 +30,8 @@ const PROTECTED_TABLES = [
   "BonusPlan",
   "BonusMoment",
   "BonusMove",
+  // HeartbeatSnapshot (#109): created after the survey; same deny-all rule
+  "HeartbeatSnapshot",
   // Shipped with RLS from day one — pinned so they never regress either
   "CalendarSource",
   "Event",

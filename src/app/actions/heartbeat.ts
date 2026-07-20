@@ -4,18 +4,18 @@
 // it reflects the latest sync each time the dashboard loads.
 
 import { prisma } from "@/lib/prisma";
-import { detectRecurringPatterns } from "@/lib/recurring/pattern-engine";
 import {
   computeSafeToSpend,
   deriveCurrentPayPeriod,
   deriveEarmarks,
-  filterPaycheckDeposits,
 } from "@/lib/heartbeat/pay-period";
+import {
+  computeHeartbeatDetection,
+  readHeartbeatSnapshot,
+} from "@/lib/heartbeat/snapshot";
 import { computeManualHeartbeat } from "@/lib/heartbeat/manual";
 import { sliceEarmark } from "@/lib/goals/engine";
 import { getRequestUser } from "@/lib/auth/request-user";
-
-const LOOKBACK_MS = 180 * 24 * 60 * 60 * 1000;
 
 export interface HeartbeatData {
   available: boolean;
@@ -53,39 +53,24 @@ export async function getHeartbeat(): Promise<HeartbeatData> {
     );
   }
 
-  const [transactions, profiles] = await Promise.all([
-    prisma.feedTransaction.findMany({
-      where: {
-        linkedAccount: { connection: { userId: user.id } },
-        postedAt: { gte: new Date(Date.now() - LOOKBACK_MS) },
-        isTransfer: false,
-      },
-      select: {
-        id: true,
-        postedAt: true,
-        amount: true,
-        description: true,
-        isTransfer: true,
-      },
-    }),
-    prisma.profile.findMany({
-      where: { userId: user.id },
-      include: {
-        spendingPlan: { include: { fixedCostLineItems: true } },
-      },
-    }),
-  ]);
+  // The expensive detection half (#109): read the sync-time snapshot when
+  // one exists — one cheap row instead of a 180-day Transaction scan plus
+  // pattern detection per view. A household that has never synced (no
+  // snapshot row) computes live, exactly as before.
+  const detection =
+    (await readHeartbeatSnapshot(user.id)) ??
+    (await computeHeartbeatDetection(
+      user.id,
+      confirmedStreams.map((s) => s.key)
+    ));
+  const { paychecks, chargePatterns } = detection;
 
-  const paychecks = filterPaycheckDeposits(
-    transactions
-      .filter((t) => Number(t.amount) > 0)
-      .map((t) => ({
-        postedAt: t.postedAt,
-        amountCents: Math.round(Number(t.amount) * 100),
-        description: t.description,
-      })),
-    confirmedStreams.map((s) => s.key)
-  );
+  const profiles = await prisma.profile.findMany({
+    where: { userId: user.id },
+    include: {
+      spendingPlan: { include: { fixedCostLineItems: true } },
+    },
+  });
 
   const period = deriveCurrentPayPeriod(paychecks, new Date());
   if (!period) {
@@ -96,16 +81,6 @@ export async function getHeartbeat(): Promise<HeartbeatData> {
       }
     );
   }
-
-  const chargePatterns = detectRecurringPatterns(
-    transactions.map((t) => ({
-      id: t.id,
-      postedAt: t.postedAt,
-      amountCents: Math.round(Number(t.amount) * 100),
-      description: t.description,
-      isTransfer: t.isTransfer,
-    }))
-  );
 
   const plan =
     profiles.find((p) => p.isDefault)?.spendingPlan ??
