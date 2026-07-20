@@ -49,7 +49,7 @@ export function SafeToSpendCard({ data }: { data: HeartbeatData | null }) {
         </p>
       </div>
       <p
-        className={`font-serif text-4xl ${negative ? "text-error" : "text-accent-gold"}`}
+        className={`font-serif text-4xl ${negative ? "text-error" : "text-accent-gold-deep"}`}
       >
         {formatCurrency((data.safeToSpendCents ?? 0) / 100)}
       </p>

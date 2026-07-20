@@ -143,7 +143,7 @@ export function StrategyComparison({
                   </div>
                 </div>
 
-                <p className="text-xs text-accent-gold font-medium text-center pt-1">
+                <p className="text-xs text-accent-gold-deep font-medium text-center pt-1">
                   {meta.highlight}
                 </p>
               </div>

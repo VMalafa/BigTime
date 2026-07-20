@@ -58,7 +58,7 @@ export default function IncomeDashboardPage() {
             </p>
             <Link
               href="/dashboard/spending-plan"
-              className="text-xs font-sans text-accent-gold hover:underline mt-0.5 inline-block"
+              className="text-xs font-sans text-accent-gold-deep hover:underline mt-0.5 inline-block"
             >
               Review the Bonus Plan →
             </Link>

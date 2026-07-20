@@ -128,20 +128,20 @@ export default function GoalsPage() {
 
       {truth?.goals.map((goal) => (
         <Card key={goal.id} padding="lg" className="mb-4" data-goal={goal.name}>
-          <div className="flex items-baseline justify-between gap-3">
-            <h3 className="font-serif text-lg text-text-primary">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1.5">
+            <h3 className="min-w-0 font-serif text-lg text-text-primary">
               {goal.emoji ? `${goal.emoji} ` : ""}
               {goal.name}
             </h3>
             {goal.isSpotlight ? (
-              <span className="rounded-full border border-accent-gold bg-accent-gold/10 px-2 py-0.5 text-xs font-sans text-accent-gold">
+              <span className="rounded-full border border-accent-gold bg-accent-gold/10 px-2 py-0.5 text-xs font-sans text-accent-gold-deep">
                 Spotlight
               </span>
             ) : confirmingId === goal.id ? (
               <button
                 type="button"
                 onClick={() => handleSpotlight(goal.id)}
-                className="rounded-full bg-text-primary px-3 py-0.5 text-xs font-sans text-white"
+                className="min-h-11 rounded-full bg-text-primary px-3.5 py-1 text-xs font-sans text-white"
               >
                 Confirm — the slice moves with it
               </button>
@@ -149,7 +149,7 @@ export default function GoalsPage() {
               <button
                 type="button"
                 onClick={() => setConfirmingId(goal.id)}
-                className="rounded-full border border-bg-secondary px-3 py-0.5 text-xs font-sans text-text-secondary hover:border-accent-gold transition-colors"
+                className="min-h-11 rounded-full border border-bg-secondary px-3.5 py-1 text-xs font-sans text-text-secondary hover:border-accent-gold transition-colors"
               >
                 Make Spotlight
               </button>
@@ -173,7 +173,7 @@ export default function GoalsPage() {
           </div>
 
           {goal.isSpotlight && (
-            <div className="mt-3 flex items-center gap-2">
+            <div className="mt-3 flex flex-wrap items-center gap-2">
               <label
                 htmlFor={`slice-${goal.id}`}
                 className="text-xs font-sans text-text-secondary"

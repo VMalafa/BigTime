@@ -317,9 +317,9 @@ export function TimelineStream({
                 key={p.id}
                 type="button"
                 onClick={() => setPerson(p.id)}
-                className={`rounded-full border px-3 py-1 text-sm font-sans transition-colors ${
+                className={`min-h-11 rounded-full border px-3 py-1 text-sm font-sans transition-colors ${
                   person === p.id
-                    ? "border-accent-gold bg-accent-gold/10 text-accent-gold"
+                    ? "border-accent-gold bg-accent-gold/10 text-accent-gold-deep"
                     : "border-bg-secondary bg-white text-text-secondary hover:border-accent-gold/50"
                 }`}
               >
@@ -341,7 +341,7 @@ export function TimelineStream({
                   onClick={() => toggleCategory(key)}
                   aria-pressed={!muted}
                   title={`${source.name} · ${category}`}
-                  className={`rounded-full border px-3 py-1 text-sm font-sans transition-colors ${
+                  className={`min-h-11 rounded-full border px-3 py-1 text-sm font-sans transition-colors ${
                     muted
                       ? "border-bg-secondary bg-bg-secondary/50 text-text-secondary/60 line-through"
                       : "border-bg-secondary bg-white text-text-primary hover:border-accent-gold/50"
@@ -360,7 +360,7 @@ export function TimelineStream({
                 type="button"
                 onClick={() => toggleMoney(chip.key)}
                 aria-pressed={!muted}
-                className={`rounded-full border px-3 py-1 text-sm font-sans transition-colors ${
+                className={`min-h-11 rounded-full border px-3 py-1 text-sm font-sans transition-colors ${
                   muted
                     ? "border-bg-secondary bg-bg-secondary/50 text-text-secondary/60 line-through"
                     : "border-accent-gold/40 bg-accent-gold/5 text-text-primary hover:border-accent-gold"
@@ -390,14 +390,14 @@ export function TimelineStream({
             onClick={() =>
               setSelected(new Set(visibleEvents.map((e) => e.id)))
             }
-            className="text-sm font-sans text-accent-gold hover:underline"
+            className="min-h-11 text-sm font-sans text-accent-gold-deep hover:underline"
           >
             Select visible
           </button>
           <button
             type="button"
             onClick={() => setSelected(new Set())}
-            className="text-sm font-sans text-text-secondary hover:underline"
+            className="min-h-11 text-sm font-sans text-text-secondary hover:underline"
           >
             Clear
           </button>
@@ -422,7 +422,7 @@ export function TimelineStream({
           <p className="text-sm text-text-secondary font-sans">
             <Link
               href="/dashboard/calendar"
-              className="text-accent-gold hover:underline"
+              className="text-accent-gold-deep hover:underline"
             >
               Import a school calendar
             </Link>{" "}
@@ -513,7 +513,7 @@ export function TimelineStream({
                                 current === row.event.id ? null : row.event.id
                               )
                             }
-                            className={`rounded-full border px-2 py-0.5 text-xs font-sans transition-colors ${
+                            className={`min-h-11 rounded-full border px-3 py-1 text-xs font-sans transition-colors ${
                               label
                                 ? "border-accent-gold/50 bg-accent-gold/10 text-text-primary"
                                 : "border-dashed border-bg-secondary text-text-secondary hover:border-accent-gold/50"
@@ -556,7 +556,7 @@ export function TimelineStream({
                                       }
                                 )
                               }
-                              className="rounded-full border border-bg-secondary bg-white px-2 py-0.5 text-xs font-sans text-text-primary hover:border-accent-gold transition-colors"
+                              className="min-h-11 rounded-full border border-bg-secondary bg-white px-3 py-1 text-xs font-sans text-text-primary hover:border-accent-gold transition-colors"
                             >
                               {choice.name}
                             </button>
@@ -571,7 +571,7 @@ export function TimelineStream({
                                   assigneeExtra: null,
                                 })
                               }
-                              className="rounded-full border border-bg-secondary bg-white px-2 py-0.5 text-xs font-sans text-text-secondary hover:border-error/60 transition-colors"
+                              className="min-h-11 rounded-full border border-bg-secondary bg-white px-3 py-1 text-xs font-sans text-text-secondary hover:border-error/60 transition-colors"
                             >
                               No one
                             </button>
@@ -598,14 +598,14 @@ export function TimelineStream({
                         <button
                           type="button"
                           onClick={() => actOnRenewal(row.event.id, "done")}
-                          className="rounded-full border border-warning bg-white px-3 py-0.5 text-xs font-sans font-medium text-text-primary hover:bg-warning/10 transition-colors"
+                          className="min-h-11 rounded-full border border-warning bg-white px-3.5 py-1 text-xs font-sans font-medium text-text-primary hover:bg-warning/10 transition-colors"
                         >
                           Done
                         </button>
                         <button
                           type="button"
                           onClick={() => actOnRenewal(row.event.id, "dismiss")}
-                          className="rounded-full border border-bg-secondary bg-white px-3 py-0.5 text-xs font-sans text-text-secondary hover:border-error/60 transition-colors"
+                          className="min-h-11 rounded-full border border-bg-secondary bg-white px-3.5 py-1 text-xs font-sans text-text-secondary hover:border-error/60 transition-colors"
                         >
                           Dismiss
                         </button>
@@ -625,7 +625,7 @@ export function TimelineStream({
           data-timeline-horizon
           className="rounded-xl border border-accent-gold/50 bg-accent-gold/10 px-5 py-4 text-center"
         >
-          <p className="font-serif text-lg text-accent-gold">{horizon}</p>
+          <p className="font-serif text-lg text-accent-gold-deep">{horizon}</p>
         </div>
       )}
     </div>

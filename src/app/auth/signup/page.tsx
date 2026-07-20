@@ -133,7 +133,7 @@ function SignupForm() {
               Already have an account?{" "}
               <Link
                 href="/auth/login"
-                className="text-accent-gold hover:text-accent-gold-light font-medium transition-colors"
+                className="text-accent-gold-deep hover:text-accent-gold font-medium transition-colors"
               >
                 Sign in
               </Link>

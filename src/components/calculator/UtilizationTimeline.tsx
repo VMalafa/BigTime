@@ -22,7 +22,7 @@ function getThresholdStyle(threshold: number) {
   return (
     THRESHOLD_COLORS[threshold] ?? {
       bg: "bg-accent-gold/10",
-      text: "text-accent-gold",
+      text: "text-accent-gold-deep",
       border: "border-accent-gold",
     }
   );

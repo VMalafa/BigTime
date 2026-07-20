@@ -29,7 +29,7 @@ export function LinkTokenForm() {
             href="https://bridge.simplefin.org"
             target="_blank"
             rel="noreferrer"
-            className="text-accent-gold hover:underline"
+            className="text-accent-gold-deep hover:underline"
           >
             SimpleFIN Bridge
           </a>{" "}

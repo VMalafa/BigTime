@@ -61,7 +61,7 @@ export function AppHeader() {
       <div className="max-w-5xl mx-auto px-6 h-14 flex items-center justify-between">
         <Link
           href="/"
-          className="font-serif text-lg text-text-primary hover:text-accent-gold transition-colors"
+          className="font-serif text-lg text-text-primary hover:text-accent-gold-deep transition-colors"
         >
           Your Rich Life
         </Link>

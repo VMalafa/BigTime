@@ -83,15 +83,12 @@ export default async function CalendarPage() {
                 data-inbound-status={email.status.toLowerCase()}
                 className="rounded-lg bg-white border border-bg-secondary px-4 py-3"
               >
-                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                  <span className="font-sans text-sm font-medium text-text-primary">
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="min-w-0 font-sans text-sm font-medium text-text-primary">
                     {email.subject || "(no subject)"}
                   </span>
-                  <span className="text-xs font-sans text-text-secondary">
-                    {email.fromAddress}
-                  </span>
                   <span
-                    className={`ml-auto rounded-full px-2 py-0.5 text-xs font-sans ${
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-sans ${
                       email.status === "PROCESSED"
                         ? "bg-success/10 text-success"
                         : email.status === "PARKED"
@@ -102,6 +99,9 @@ export default async function CalendarPage() {
                     {email.status.toLowerCase()}
                   </span>
                 </div>
+                <p className="text-xs font-sans text-text-secondary break-all">
+                  {email.fromAddress}
+                </p>
                 <p className="text-xs font-sans text-text-secondary mt-1">
                   {email.note}
                 </p>

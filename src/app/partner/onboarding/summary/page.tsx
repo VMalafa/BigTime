@@ -136,7 +136,7 @@ export default function SummaryPage() {
               <span className="font-sans text-sm text-text-secondary">
                 Joint Pool
               </span>
-              <span className="font-sans text-sm font-semibold text-accent-gold">
+              <span className="font-sans text-sm font-semibold text-accent-gold-deep">
                 {formatCurrency(Math.max(0, jointPoolIncome))}/mo
               </span>
             </div>
@@ -178,7 +178,7 @@ export default function SummaryPage() {
                 <span className="font-sans text-sm font-medium text-text-primary">
                   Total Shared Debt
                 </span>
-                <span className="font-sans text-sm font-semibold text-accent-gold">
+                <span className="font-sans text-sm font-semibold text-accent-gold-deep">
                   {formatCurrency(sharedDebtTotal)}
                 </span>
               </div>

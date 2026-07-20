@@ -101,7 +101,7 @@ export function SharedDebtMapper({
               <p className="font-serif text-xl text-text-primary">
                 {sharedDebts.length}
               </p>
-              <p className="font-sans text-sm text-accent-gold font-medium">
+              <p className="font-sans text-sm text-accent-gold-deep font-medium">
                 {formatCurrency(sharedTotal)}
               </p>
             </div>

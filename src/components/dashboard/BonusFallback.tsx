@@ -98,14 +98,14 @@ export function BonusFallback() {
                   <button
                     type="button"
                     onClick={() => resolve(item, "MIGRATE")}
-                    className="rounded-full border border-accent-gold px-3 py-0.5 text-xs text-accent-gold hover:bg-accent-gold/10 transition-colors"
+                    className="min-h-11 rounded-full border border-accent-gold px-3.5 py-1 text-xs text-accent-gold-deep hover:bg-accent-gold/10 transition-colors"
                   >
                     Bring it in
                   </button>
                   <button
                     type="button"
                     onClick={() => resolve(item, "DISMISS")}
-                    className="text-xs text-text-secondary hover:text-text-primary transition-colors"
+                    className="min-h-11 text-xs text-text-secondary hover:text-text-primary transition-colors"
                   >
                     Let it go
                   </button>
@@ -130,14 +130,14 @@ export function BonusFallback() {
               className="w-32 rounded-md border border-bg-secondary px-2 py-1.5 text-sm font-sans text-text-primary"
             />
           </label>
-          <label className="flex flex-col gap-1 text-xs font-sans text-text-secondary">
+          <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-sans text-text-secondary sm:flex-none">
             What was it?
             <input
               type="text"
               placeholder="Spot bonus"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-44 rounded-md border border-bg-secondary px-2 py-1.5 text-sm font-sans text-text-primary"
+              className="w-full sm:w-44 rounded-md border border-bg-secondary px-2 py-1.5 text-sm font-sans text-text-primary"
             />
           </label>
           <Button

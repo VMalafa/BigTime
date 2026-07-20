@@ -51,14 +51,14 @@ export function VisionVennDiagram({
           Partner
         </span>
         {sharedValues.length > 0 && (
-          <span className="absolute font-sans text-xs font-semibold text-accent-gold" style={{ top: "4px" }}>
+          <span className="absolute font-sans text-xs font-semibold text-accent-gold-deep" style={{ top: "4px" }}>
             Shared
           </span>
         )}
       </div>
 
       {/* Value columns */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div>
           <h4 className="font-sans text-sm font-semibold text-cat-blue mb-3 text-center">
             Only You
@@ -87,7 +87,7 @@ export function VisionVennDiagram({
         </div>
 
         <div>
-          <h4 className="font-sans text-sm font-semibold text-accent-gold mb-3 text-center">
+          <h4 className="font-sans text-sm font-semibold text-accent-gold-deep mb-3 text-center">
             Shared
           </h4>
           <div className="flex flex-col gap-2">

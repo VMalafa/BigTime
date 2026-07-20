@@ -53,7 +53,7 @@ export const Slider = forwardRef<HTMLInputElement, SliderProps>(
               </label>
             )}
             {showValue && (
-              <span className="font-sans text-sm font-semibold text-accent-gold">
+              <span className="font-sans text-sm font-semibold text-accent-gold-deep">
                 {formatValue(value)}
               </span>
             )}

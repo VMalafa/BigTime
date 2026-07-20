@@ -64,7 +64,7 @@ export function ProgressBar({
                 key={i}
                 className={`flex-1 text-center text-xs font-sans transition-colors duration-300 ${
                   isCurrent
-                    ? "text-accent-gold font-semibold"
+                    ? "text-accent-gold-deep font-semibold"
                     : isCompleted
                       ? "text-text-primary"
                       : "text-text-secondary/50"
