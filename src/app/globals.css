@@ -7,6 +7,10 @@
   --text-secondary: #6B5744;
   --accent-gold: #C4A265;
   --accent-gold-light: #D4B87A;
+  /* Text-grade gold: #C4A265 is a fill/border color — at small text sizes it
+     reads 2.4:1 on white. This deepened step passes WCAG AA (≥4.5:1) on
+     both --bg-primary and white. Use it whenever gold carries words. */
+  --accent-gold-deep: #856738;
   --cat-green: #4A6741;
   --cat-blue: #5B7B8A;
   --cat-terra: #B56B4A;
@@ -25,6 +29,7 @@
   --color-text-secondary: var(--text-secondary);
   --color-accent-gold: var(--accent-gold);
   --color-accent-gold-light: var(--accent-gold-light);
+  --color-accent-gold-deep: var(--accent-gold-deep);
   --color-cat-green: var(--cat-green);
   --color-cat-blue: var(--cat-blue);
   --color-cat-terra: var(--cat-terra);

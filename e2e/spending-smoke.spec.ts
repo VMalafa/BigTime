@@ -78,11 +78,12 @@ test("spending page: plan vs actual, honest chip, Transfers excluded", async ({
 
   // Inline Correction: recategorize an uncategorized merchant; the honest
   // chip recounts (only SQ *CORNER STORE, $45, remains) and a standing rule
-  // is created for the merchant.
+  // is created for the merchant. Picking the Money Dial IS the save — the
+  // second-level chips swap in after the bucket tap, no separate button.
   await page.getByText("MYSTERY MERCHANT 4821").click();
   await page.getByRole("button", { name: "Guilt-Free", exact: true }).click();
   await page.getByRole("button", { name: "Convenience" }).click();
-  await page.getByRole("button", { name: "Save correction" }).click();
+  await expect(page.getByText(/Convenience — saved, rule created/)).toBeVisible();
   // Drain the correction's in-flight write before reloading for the
   // server-rendered chip (a reload can abort a pending action — the #13
   // scenario), then poll: the refresh round trip is slow on the pooled

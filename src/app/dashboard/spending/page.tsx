@@ -184,7 +184,7 @@ export default async function SpendingPage({
           <Link
             href={`/dashboard/spending?month=${prevKey}`}
             aria-label="Previous month"
-            className="px-2.5 py-1.5 rounded-md border border-bg-secondary bg-white text-text-secondary hover:text-text-primary"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-bg-secondary bg-white text-text-secondary hover:text-text-primary"
           >
             ←
           </Link>
@@ -194,7 +194,7 @@ export default async function SpendingPage({
           <Link
             href={`/dashboard/spending?month=${nextKey}`}
             aria-label="Next month"
-            className="px-2.5 py-1.5 rounded-md border border-bg-secondary bg-white text-text-secondary hover:text-text-primary"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-bg-secondary bg-white text-text-secondary hover:text-text-primary"
           >
             →
           </Link>
@@ -205,16 +205,20 @@ export default async function SpendingPage({
         between your own accounts are excluded.
       </p>
 
-      {/* Honesty chip: uncategorized spending is shown, never hidden. */}
+      {/* Honesty chip: uncategorized spending is shown, never hidden — and
+          the chip jumps straight to the rows waiting for a Correction. */}
       {summary.uncategorizedCount > 0 && (
-        <div className="inline-flex items-center gap-2 rounded-full border border-warning bg-warning/10 px-4 py-1.5 mb-6">
+        <a
+          href="#uncategorized"
+          className="inline-flex min-h-11 items-center gap-2 rounded-full border border-warning bg-warning/10 px-4 py-1.5 mb-6 hover:bg-warning/20 transition-colors"
+        >
           <span className="w-2 h-2 rounded-full bg-warning" aria-hidden />
           <span className="font-sans text-sm text-text-primary">
             {summary.uncategorizedCount} transaction
             {summary.uncategorizedCount !== 1 ? "s" : ""} not yet categorized (
-            {formatCurrency(summary.uncategorizedCents / 100)})
+            {formatCurrency(summary.uncategorizedCents / 100)}) →
           </span>
-        </div>
+        </a>
       )}
 
       <div className="rounded-lg bg-white border border-bg-secondary p-5 mb-8">
@@ -281,7 +285,7 @@ export default async function SpendingPage({
                   )}
                   {dialBreakdown.totalCents > 0 && (
                     <details>
-                      <summary className="cursor-pointer font-sans text-xs text-text-secondary hover:text-text-primary">
+                      <summary className="inline-flex min-h-11 items-center cursor-pointer font-sans text-xs text-text-secondary hover:text-text-primary">
                         Money Dials — where guilt-free actually went
                       </summary>
                       <ul className="mt-2 space-y-1">
@@ -332,6 +336,27 @@ export default async function SpendingPage({
       )}
 
       <div className="space-y-8">
+        {/* The page's primary task leads the transaction groups: rows
+            waiting for a Correction come before the already-sorted buckets. */}
+        {uncategorizedRows.length > 0 && (
+          <section
+            id="uncategorized"
+            aria-label="Not yet categorized"
+            className="scroll-mt-4"
+          >
+            <h2 className="font-serif text-xl text-text-primary mb-2">
+              Not yet categorized
+            </h2>
+            <p className="text-xs text-text-secondary font-sans mb-2">
+              These count toward the month&apos;s spending but not toward any
+              bucket yet. The next categorization batch will pick them up.
+            </p>
+            <div className="rounded-lg bg-white border border-warning/50 px-5 py-2">
+              <CorrectableTransactionList rows={toCorrectableRows(uncategorizedRows)} />
+            </div>
+          </section>
+        )}
+
         {SPENDING_BUCKETS.map((bucket) => {
           const bucketRows = spendingRows(bucket);
           if (bucketRows.length === 0) return null;
@@ -346,21 +371,6 @@ export default async function SpendingPage({
             </section>
           );
         })}
-
-        {uncategorizedRows.length > 0 && (
-          <section aria-label="Not yet categorized">
-            <h2 className="font-serif text-xl text-text-primary mb-2">
-              Not yet categorized
-            </h2>
-            <p className="text-xs text-text-secondary font-sans mb-2">
-              These count toward the month&apos;s spending but not toward any
-              bucket yet. The next categorization batch will pick them up.
-            </p>
-            <div className="rounded-lg bg-white border border-warning/50 px-5 py-2">
-              <CorrectableTransactionList rows={toCorrectableRows(uncategorizedRows)} />
-            </div>
-          </section>
-        )}
 
         {transferRows.length > 0 && (
           <section aria-label="Transfers">
