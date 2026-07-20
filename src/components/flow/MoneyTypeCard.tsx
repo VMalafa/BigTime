@@ -74,7 +74,7 @@ export function MoneyTypeCard({
                   </ul>
                 </div>
                 <div>
-                  <h4 className="font-sans text-xs font-semibold uppercase tracking-wider text-accent-gold mb-1.5">
+                  <h4 className="font-sans text-xs font-semibold uppercase tracking-wider text-accent-gold-deep mb-1.5">
                     Growth Edges
                   </h4>
                   <ul className="space-y-1">

@@ -163,7 +163,7 @@ export default function CreditDashboardPage() {
           Enter your current credit score (from Credit Karma, your bank app,
           etc.) and a goal to track progress over time.
         </p>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
           <Input
             label="Current Score"
             type="number"
@@ -194,7 +194,7 @@ export default function CreditDashboardPage() {
           <div className="mt-4 rounded-md bg-accent-gold/10 p-3">
             <p className="text-sm font-sans text-text-primary">
               You&apos;re aiming for a{" "}
-              <span className="font-semibold text-accent-gold">
+              <span className="font-semibold text-accent-gold-deep">
                 +{scoreDelta} point
               </span>{" "}
               improvement. Following the action plan below typically moves
@@ -331,7 +331,7 @@ export default function CreditDashboardPage() {
               <div className="flex-1">
                 <p
                   className={`font-sans text-sm font-medium ${
-                    m.reached ? "text-accent-gold" : "text-text-primary"
+                    m.reached ? "text-accent-gold-deep" : "text-text-primary"
                   }`}
                 >
                   {m.label}

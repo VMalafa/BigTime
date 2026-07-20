@@ -430,9 +430,9 @@ export default function MoneyDatePage() {
                                     )
                                   )
                                 }
-                                className={`rounded-full border px-2 py-0.5 text-xs transition-colors ${
+                                className={`min-h-11 rounded-full border px-3.5 py-1 text-xs transition-colors ${
                                   choice === option
-                                    ? "border-accent-gold bg-accent-gold/10 text-accent-gold"
+                                    ? "border-accent-gold bg-accent-gold/10 text-accent-gold-deep"
                                     : "border-bg-secondary bg-white text-text-secondary"
                                 }`}
                               >
@@ -460,7 +460,7 @@ export default function MoneyDatePage() {
                   A windfall landed this month. Still the split you&apos;d
                   choose calmly? Most months this is a nod and a Next.
                 </p>
-                <div className="mt-4 flex items-center justify-center gap-3">
+                <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
                   {(
                     [
                       ["debtPercent", "Debt"],
@@ -508,7 +508,7 @@ export default function MoneyDatePage() {
           {eyebrow("Always end on the dream")}
           {truth.spotlightGoal ? (
             <>
-              <h1 className="font-serif text-4xl text-accent-gold">
+              <h1 className="font-serif text-4xl text-accent-gold-deep">
                 {truth.spotlightGoal.emoji
                   ? `${truth.spotlightGoal.emoji} `
                   : ""}
@@ -531,7 +531,7 @@ export default function MoneyDatePage() {
             </>
           ) : (
             <>
-              <h1 className="font-serif text-3xl text-accent-gold">
+              <h1 className="font-serif text-3xl text-accent-gold-deep">
                 Pick the goal this is all for
               </h1>
               <p className="text-text-primary text-base leading-relaxed font-sans mt-4">
@@ -569,9 +569,9 @@ export default function MoneyDatePage() {
                 key={choice}
                 type="button"
                 onClick={() => setPresent(choice)}
-                className={`rounded-full border px-4 py-1.5 text-sm font-sans transition-colors ${
+                className={`min-h-11 rounded-full border px-4 py-1.5 text-sm font-sans transition-colors ${
                   present === choice
-                    ? "border-accent-gold bg-accent-gold/10 text-accent-gold"
+                    ? "border-accent-gold bg-accent-gold/10 text-accent-gold-deep"
                     : "border-bg-secondary bg-white text-text-secondary"
                 }`}
               >
@@ -600,7 +600,7 @@ export default function MoneyDatePage() {
           </p>
           <Link
             href="/dashboard"
-            className="mt-6 text-sm font-sans text-accent-gold hover:underline"
+            className="mt-6 text-sm font-sans text-accent-gold-deep hover:underline"
           >
             Back to Home →
           </Link>
@@ -620,7 +620,7 @@ export default function MoneyDatePage() {
               aria-label="Move to evening"
               value={rescheduleTo}
               onChange={(e) => setRescheduleTo(e.target.value)}
-              className="rounded-lg border border-bg-secondary px-2 py-1 text-sm font-sans"
+              className="min-h-11 rounded-lg border border-bg-secondary px-3 py-1 text-sm font-sans"
             />
             <Button
               variant="secondary"

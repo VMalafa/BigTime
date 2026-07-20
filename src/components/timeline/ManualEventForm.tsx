@@ -126,9 +126,9 @@ export function ManualEventForm({
                   setCategory(option);
                   setNewCategory("");
                 }}
-                className={`rounded-full border px-3 py-1 text-sm font-sans transition-colors ${
+                className={`min-h-11 rounded-full border px-3 py-1 text-sm font-sans transition-colors ${
                   active
-                    ? "border-accent-gold bg-accent-gold/10 text-accent-gold"
+                    ? "border-accent-gold bg-accent-gold/10 text-accent-gold-deep"
                     : "border-bg-secondary bg-white text-text-secondary hover:border-accent-gold/50"
                 }`}
               >
@@ -142,9 +142,9 @@ export function ManualEventForm({
             aria-label="New category"
             value={newCategory}
             onChange={(e) => setNewCategory(e.target.value)}
-            className={`rounded-full border px-3 py-1 text-sm font-sans w-36 focus:outline-none focus:border-accent-gold ${
+            className={`min-h-11 rounded-full border px-3 py-1 text-sm font-sans w-36 focus:outline-none focus:border-accent-gold ${
               newCategory.trim()
-                ? "border-accent-gold bg-accent-gold/10 text-accent-gold"
+                ? "border-accent-gold bg-accent-gold/10 text-accent-gold-deep"
                 : "border-bg-secondary text-text-secondary"
             }`}
           />

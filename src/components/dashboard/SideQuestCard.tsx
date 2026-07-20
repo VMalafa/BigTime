@@ -37,7 +37,7 @@ export function SideQuestCard() {
       <div className="mt-2 flex items-center gap-4">
         <Link
           href="/flow/scripts"
-          className="text-sm font-sans font-medium text-accent-gold hover:underline"
+          className="text-sm font-sans font-medium text-accent-gold-deep hover:underline"
         >
           Start the side-quest →
         </Link>

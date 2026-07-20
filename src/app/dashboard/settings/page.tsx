@@ -93,11 +93,14 @@ export default function SettingsPage() {
             "Share Income Details",
             "Share Money Dials",
           ].map((label) => (
-            <label key={label} className="flex items-center justify-between">
+            <label
+              key={label}
+              className="flex min-h-11 cursor-pointer items-center justify-between gap-3"
+            >
               <span className="text-sm">{label}</span>
               <input
                 type="checkbox"
-                className="w-4 h-4 rounded accent-accent-gold"
+                className="w-5 h-5 rounded accent-accent-gold cursor-pointer"
               />
             </label>
           ))}

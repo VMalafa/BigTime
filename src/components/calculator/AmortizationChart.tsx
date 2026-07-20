@@ -37,7 +37,7 @@ export function AmortizationChart({
     <div className="flex flex-col gap-3">
       <h3 className="font-serif text-lg text-text-primary">
         Balance Over Time{" "}
-        <span className="text-accent-gold">({strategyName})</span>
+        <span className="text-accent-gold-deep">({strategyName})</span>
       </h3>
 
       <div className="w-full h-72 md:h-80">

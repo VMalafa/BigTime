@@ -114,7 +114,7 @@ function DebtCard({
         </motion.div>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             <div>
               <p className="text-text-secondary text-xs font-sans">
                 Current Balance
@@ -131,7 +131,7 @@ function DebtCard({
                     {formatAsOf(syncCaption.balanceAsOf)} ·{" "}
                     <Link
                       href="/settings/connections"
-                      className="text-accent-gold hover:underline"
+                      className="text-accent-gold-deep hover:underline"
                     >
                       Manage
                     </Link>
@@ -145,7 +145,7 @@ function DebtCard({
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className="flex items-center gap-2 mt-1"
+                    className="flex flex-wrap items-center gap-2 mt-1"
                   >
                     <Input
                       type="number"
@@ -180,7 +180,7 @@ function DebtCard({
                         setNewBalance(debt.balance.toString());
                         setEditing(true);
                       }}
-                      className="text-accent-gold text-xs font-sans hover:underline cursor-pointer"
+                      className="text-accent-gold-deep text-xs font-sans hover:underline cursor-pointer"
                     >
                       Edit
                     </button>

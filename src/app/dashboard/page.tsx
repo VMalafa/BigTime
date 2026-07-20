@@ -104,7 +104,7 @@ export default async function DashboardPage() {
         {uncategorized > 0 && (
           <Link
             href="/dashboard/spending"
-            className="inline-flex items-center gap-2 rounded-full border border-bg-secondary bg-white px-3 py-1.5 text-xs font-sans text-text-secondary hover:border-accent-gold transition-colors"
+            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-bg-secondary bg-white px-3.5 py-1.5 text-xs font-sans text-text-secondary hover:border-accent-gold transition-colors"
           >
             <span className="h-1.5 w-1.5 rounded-full bg-warning" />
             {uncategorized} transaction{uncategorized !== 1 ? "s" : ""} not yet
@@ -171,7 +171,7 @@ export default async function DashboardPage() {
           Running on manual entries.{" "}
           <Link
             href="/settings/connections"
-            className="text-accent-gold hover:underline"
+            className="text-accent-gold-deep hover:underline"
           >
             Link your accounts
           </Link>{" "}

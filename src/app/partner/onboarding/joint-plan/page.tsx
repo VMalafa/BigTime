@@ -112,7 +112,7 @@ export default function JointPlanPage() {
           <div className="mt-4 pt-4 border-t border-bg-secondary text-center">
             <p className="font-sans text-sm text-text-secondary">
               Joint Pool:{" "}
-              <span className="font-semibold text-accent-gold">
+              <span className="font-semibold text-accent-gold-deep">
                 {formatCurrency(Math.max(0, jointPoolIncome))}
               </span>{" "}
               / month

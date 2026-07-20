@@ -103,7 +103,7 @@ export default function Home() {
                 className="reveal-scroll flex flex-col items-center text-center"
               >
                 <span className="text-4xl mb-4">{step.icon}</span>
-                <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-accent-gold/15 text-accent-gold text-sm font-sans font-semibold mb-3">
+                <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-accent-gold/15 text-accent-gold-deep text-sm font-sans font-semibold mb-3">
                   {i + 1}
                 </span>
                 <p className="text-text-primary font-sans font-medium text-sm">

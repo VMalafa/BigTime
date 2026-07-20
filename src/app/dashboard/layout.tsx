@@ -96,7 +96,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                 <div
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-sans transition-[color,background-color,translate] duration-150 hover:translate-x-[2px] ${
                     active
-                      ? "bg-accent-gold/10 text-accent-gold font-medium"
+                      ? "bg-accent-gold/10 text-accent-gold-deep font-medium"
                       : "text-text-secondary hover:text-text-primary hover:bg-bg-secondary"
                   }`}
                 >
@@ -140,7 +140,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                 href={item.href}
                 className={`flex flex-col items-center gap-0.5 px-3 py-1.5 text-xs font-sans transition-colors ${
                   active
-                    ? "text-accent-gold"
+                    ? "text-accent-gold-deep"
                     : "text-text-secondary"
                 }`}
               >

@@ -77,7 +77,7 @@ export function CounselorChat({
                 }`}
               >
                 {msg.role === "assistant" && (
-                  <p className="font-sans text-xs text-accent-gold font-medium mb-1">
+                  <p className="font-sans text-xs text-accent-gold-deep font-medium mb-1">
                     Financial Counselor
                   </p>
                 )}
@@ -97,7 +97,7 @@ export function CounselorChat({
             className="flex justify-start"
           >
             <div className="bg-accent-gold/10 border border-accent-gold/15 rounded-2xl rounded-bl-md px-4 py-3">
-              <p className="font-sans text-xs text-accent-gold font-medium mb-1">
+              <p className="font-sans text-xs text-accent-gold-deep font-medium mb-1">
                 Financial Counselor
               </p>
               <div className="flex items-center gap-1.5">

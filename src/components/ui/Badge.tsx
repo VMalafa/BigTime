@@ -11,7 +11,7 @@ interface BadgeProps {
 }
 
 const variantClasses: Record<BadgeVariant, string> = {
-  default: "bg-accent-gold/15 text-accent-gold",
+  default: "bg-accent-gold/15 text-accent-gold-deep",
   green: "bg-cat-green/15 text-cat-green",
   blue: "bg-cat-blue/15 text-cat-blue",
   terra: "bg-cat-terra/15 text-cat-terra",

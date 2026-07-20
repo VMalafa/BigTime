@@ -22,7 +22,7 @@ export function ExtraPaymentSlider({
   return (
     <div className="flex flex-col gap-4">
       <div className="text-center">
-        <span className="font-serif text-3xl text-accent-gold">
+        <span className="font-serif text-3xl text-accent-gold-deep">
           {formatCurrency(value)}
         </span>
         <p className="text-text-secondary text-sm mt-1">
