@@ -1,14 +1,11 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { createClient } from "@/lib/supabase/server";
 import type { MoneyType, DialCategory } from "@/lib/store/flow-store";
+import { getRequestUser } from "@/lib/auth/request-user";
 
 export async function getHouseholdFinancials() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getRequestUser();
 
   if (!user) return null;
 
@@ -130,10 +127,7 @@ export async function getHouseholdFinancials() {
 }
 
 export async function getAIHouseholdContext() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getRequestUser();
 
   if (!user) return null;
 

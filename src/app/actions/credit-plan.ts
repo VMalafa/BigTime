@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { createClient } from "@/lib/supabase/server";
+import { getRequestUserId } from "@/lib/auth/request-user";
 
 export interface CreditPlanData {
   currentScore: number | null;
@@ -13,16 +13,8 @@ export interface CreditPlanData {
   notes: string | null;
 }
 
-async function getUserId(): Promise<string | null> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user?.id ?? null;
-}
-
 export async function loadCreditPlan(): Promise<CreditPlanData | null> {
-  const userId = await getUserId();
+  const userId = await getRequestUserId();
   if (!userId) return null;
 
   const plan = await prisma.creditPlan.findUnique({
@@ -53,7 +45,7 @@ export async function loadCreditPlan(): Promise<CreditPlanData | null> {
 }
 
 export async function saveCreditPlan(data: Partial<CreditPlanData>) {
-  const userId = await getUserId();
+  const userId = await getRequestUserId();
   if (!userId) return;
 
   await prisma.creditPlan.upsert({

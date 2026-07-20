@@ -143,7 +143,11 @@ test("today strip: quirk row + coverage Watch; assignment flips the hero", async
 
   // The chip render above is optimistic; wait for SERVER truth on the
   // timeline first (poll with reloads — the #13 race), so the Home visit
-  // below reads a world where the assignment already exists.
+  // below reads a world where the assignment already exists. Let the
+  // assignment's round trip finish before the first reload — a reload
+  // that lands while the write's fetch is in flight aborts it for good
+  // (#109).
+  await page.waitForLoadState("networkidle");
   await expect(async () => {
     await page.reload();
     await expect(

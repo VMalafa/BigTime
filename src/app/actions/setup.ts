@@ -7,20 +7,12 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { createClient } from "@/lib/supabase/server";
 import {
   deriveSetupWalk,
   planStepHref,
   type SetupWalkState,
 } from "@/lib/setup/walk";
-
-async function requireUserId(): Promise<string | null> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user?.id ?? null;
-}
+import { getRequestUserId } from "@/lib/auth/request-user";
 
 export interface SetupState extends SetupWalkState {
   hasLinkedAccount: boolean;
@@ -28,7 +20,7 @@ export interface SetupState extends SetupWalkState {
 }
 
 export async function getSetupState(): Promise<SetupState | null> {
-  const userId = await requireUserId();
+  const userId = await getRequestUserId();
   if (!userId) return null;
 
   // One database round trip: existence flags as scalar subselects. This
@@ -130,7 +122,7 @@ export async function dismissSideQuest(): Promise<{
   ok?: boolean;
   error?: string;
 }> {
-  const userId = await requireUserId();
+  const userId = await getRequestUserId();
   if (!userId) return { error: "Not signed in." };
 
   await prisma.user.update({

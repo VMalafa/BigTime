@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { createClient } from "@/lib/supabase/server";
 import { detectRecurringPatterns } from "@/lib/recurring/pattern-engine";
 import { filterPaycheckDeposits } from "@/lib/heartbeat/pay-period";
 import { deriveMoneyMoments } from "@/lib/timeline/money-moments";
@@ -12,6 +11,7 @@ import {
   type TimelineFilterSource,
   type TimelinePerson,
 } from "@/components/timeline/TimelineStream";
+import { getRequestUser } from "@/lib/auth/request-user";
 
 // The Household Timeline (#56, ratified in #32): one merged, forward-looking
 // stream — CONFIRMED Events interleaved with money moments derived live from
@@ -23,10 +23,7 @@ const LOOKBACK_MS = 180 * 24 * 60 * 60 * 1000;
 const HORIZON_DAYS = 60;
 
 export default async function TimelinePage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getRequestUser();
   if (!user) redirect("/auth/login");
 
   const now = new Date();

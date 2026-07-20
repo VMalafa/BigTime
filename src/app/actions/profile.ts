@@ -1,18 +1,15 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
+import { getRequestUser } from "@/lib/auth/request-user";
 
 const MAX_PROFILES = 2;
 const ACTIVE_PROFILE_COOKIE = "active-profile-id";
 
 export async function getProfiles() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getRequestUser();
 
   if (!user) return [];
 
@@ -25,10 +22,7 @@ export async function getProfiles() {
 }
 
 export async function getActiveProfile() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getRequestUser();
 
   if (!user) return null;
 
@@ -51,10 +45,7 @@ export async function getActiveProfile() {
 }
 
 export async function switchProfile(profileId: string) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getRequestUser();
 
   if (!user) return { error: "Not authenticated" };
 
@@ -85,10 +76,7 @@ export async function addPartnerProfile(formData: FormData) {
     return { error: "Name is required." };
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getRequestUser();
 
   if (!user) return { error: "Not authenticated." };
 

@@ -6,7 +6,6 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { createClient } from "@/lib/supabase/server";
 import { getHeartbeat, type HeartbeatData } from "@/app/actions/heartbeat";
 import { computeWeather, type WeatherReading } from "@/lib/heartbeat/weather";
 import { deriveDateInsight } from "@/lib/money-date/beats";
@@ -36,16 +35,9 @@ import {
   shiftMonthKey,
   summarizeMonth,
 } from "@/lib/spending/month-summary";
+import { getRequestUserId } from "@/lib/auth/request-user";
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
-
-async function requireUserId(): Promise<string | null> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user?.id ?? null;
-}
 
 export interface MoneyDateSummary {
   id: string;
@@ -131,7 +123,7 @@ export interface MoneyDateTruth {
 }
 
 export async function getMoneyDateTruth(): Promise<MoneyDateTruth | null> {
-  const userId = await requireUserId();
+  const userId = await getRequestUserId();
   if (!userId) return null;
 
   const now = new Date();
@@ -335,7 +327,7 @@ export async function rescheduleMoneyDate(input: {
   /** Date-only ISO. */
   toDate: string;
 }): Promise<{ ok?: boolean; error?: string }> {
-  const userId = await requireUserId();
+  const userId = await getRequestUserId();
   if (!userId) return { error: "Not signed in." };
   if (!DATE_ONLY.test(input.toDate)) {
     return { error: "Pick a real evening (YYYY-MM-DD)." };
@@ -360,7 +352,7 @@ export async function completeMoneyDate(input: {
   presentNames: string[];
   beats: MoneyDateBeats;
 }): Promise<{ ok?: boolean; error?: string }> {
-  const userId = await requireUserId();
+  const userId = await getRequestUserId();
   if (!userId) return { error: "Not signed in." };
 
   const updated = await prisma.moneyDate.updateMany({

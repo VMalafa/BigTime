@@ -8,7 +8,6 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { createClient } from "@/lib/supabase/server";
 import {
   CELEBRATION_BUDGET_CENTS,
   detectMilestones,
@@ -16,6 +15,7 @@ import {
   goalProgressCents,
   type GoalInput,
 } from "@/lib/goals/engine";
+import { getRequestUserId } from "@/lib/auth/request-user";
 
 const PATHS = [
   "/dashboard",
@@ -26,14 +26,6 @@ const PATHS = [
 
 function revalidateAll() {
   for (const path of PATHS) revalidatePath(path);
-}
-
-async function requireUserId(): Promise<string | null> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user?.id ?? null;
 }
 
 export interface GoalData {
@@ -117,7 +109,7 @@ export interface GoalsTruth {
 }
 
 export async function listGoals(): Promise<GoalsTruth | null> {
-  const userId = await requireUserId();
+  const userId = await getRequestUserId();
   if (!userId) return null;
 
   const [goals, accounts] = await Promise.all([
@@ -154,7 +146,7 @@ export async function createGoal(input: {
   linkedAccountId?: string;
   manualCents?: number;
 }): Promise<{ goal: GoalData } | { error: string }> {
-  const userId = await requireUserId();
+  const userId = await getRequestUserId();
   if (!userId) return { error: "Not signed in." };
 
   const name = input.name.trim();
@@ -207,7 +199,7 @@ export async function updateGoal(input: {
   manualCents?: number;
   linkedAccountId?: string | null;
 }): Promise<{ goal: GoalData } | { error: string }> {
-  const userId = await requireUserId();
+  const userId = await getRequestUserId();
   if (!userId) return { error: "Not signed in." };
 
   const existing = await prisma.goal.findFirst({
@@ -270,7 +262,7 @@ export async function updateGoal(input: {
 export async function setSpotlight(input: {
   id: string;
 }): Promise<{ ok?: boolean; error?: string }> {
-  const userId = await requireUserId();
+  const userId = await getRequestUserId();
   if (!userId) return { error: "Not signed in." };
 
   const target = await prisma.goal.findFirst({
@@ -309,7 +301,7 @@ export interface MilestoneData {
  * session — "use server" exports are public endpoints and must never
  * take a caller-supplied userId. */
 export async function detectAndListMilestones(): Promise<MilestoneData[]> {
-  const userId = await requireUserId();
+  const userId = await getRequestUserId();
   if (!userId) return [];
   const [goals, debts, existing] = await Promise.all([
     prisma.goal.findMany({ where: { userId }, include: GOAL_INCLUDE }),
@@ -373,7 +365,7 @@ export async function decideMilestone(input: {
   id: string;
   decision: "ACCEPTED" | "DISMISSED";
 }): Promise<{ ok?: boolean; error?: string }> {
-  const userId = await requireUserId();
+  const userId = await getRequestUserId();
   if (!userId) return { error: "Not signed in." };
 
   const updated = await prisma.milestone.updateMany({

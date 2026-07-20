@@ -64,7 +64,10 @@ test("eight cards (first of month, Moment month) to kept in ≤11 taps; archive 
   // (#82) joins — and the fixture's windfalls make this a Moment month,
   // so the Bonus Plan tune-up (#89) rides too: 8 cards, "1 of 8".
   const first = page.locator("[data-date-card='weather']");
-  await expect(first).toBeVisible({ timeout: 20_000 });
+  // The ritual's opening read (heartbeat + deep agenda + archive) can
+  // queue behind an abandoned Home chain on the pooled connection late in
+  // the suite — 20s is the tightest gate in the run and flakes (#109).
+  await expect(first).toBeVisible({ timeout: 40_000 });
   await expect(first).toContainText("1 of 8");
   await expect(first.getByRole("heading")).toHaveText(
     /Steady|Watch|Attention/

@@ -7,7 +7,6 @@
 // src/lib/timeline/today-strip.ts); this action only feeds them.
 
 import { prisma } from "@/lib/prisma";
-import { createClient } from "@/lib/supabase/server";
 import { getHeartbeat, type HeartbeatData } from "@/app/actions/heartbeat";
 import {
   computeWeather,
@@ -28,6 +27,7 @@ import {
   type MilestoneData,
 } from "@/app/actions/goals";
 import { getBonusGlance, type BonusGlance } from "@/app/actions/bonus";
+import { getRequestUser } from "@/lib/auth/request-user";
 
 export interface HomeTruth {
   heartbeat: HeartbeatData;
@@ -54,10 +54,7 @@ export interface HomeTruth {
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export async function getHomeTruth(): Promise<HomeTruth | null> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getRequestUser();
   if (!user) return null;
 
   const now = new Date();
@@ -138,17 +135,17 @@ export async function getHomeTruth(): Promise<HomeTruth | null> {
     today: todayIso,
   });
 
-  // Paycheck detection raises the Date (#81) — idempotent on periodStart,
-  // reusing this read's heartbeat (never computed twice per glance).
-  const moneyDate = await ensureMoneyDateRaised(user.id, heartbeat);
-
-  // Milestone detection (#86): idempotent by natural key; the glance
-  // shows one celebration at a time, oldest first.
-  const milestones = await detectAndListMilestones();
-
-  // Windfall detection + move verification (#89): same idempotent
-  // detection-on-read shape — the deposit id is the natural key.
-  const bonus = await getBonusGlance();
+  // The three independent detections run concurrently (#109): the Money
+  // Date raise (#81, reusing this read's heartbeat — never computed twice
+  // per glance), Milestone detection (#86), and windfall detection + move
+  // verification (#89). Each is idempotent by natural key. The Prisma
+  // pool queues excess queries (pool_timeout) rather than erroring, and
+  // the shared request guard means none of them re-verifies the session.
+  const [moneyDate, milestones, bonus] = await Promise.all([
+    ensureMoneyDateRaised(user.id, heartbeat),
+    detectAndListMilestones(),
+    getBonusGlance(),
+  ]);
 
   return {
     heartbeat,

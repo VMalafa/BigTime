@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { createClient } from "@/lib/supabase/server";
 import { FIXED_COST_CATEGORIES } from "@/lib/constants/csp-ranges";
 import { MONEY_DIALS } from "@/lib/constants/money-dials";
 import { formatCurrency, formatPercent } from "@/lib/utils/format";
@@ -26,6 +25,7 @@ import {
   selectDriftCallout,
   DIAL_DRIFT_MIN_TRANSACTIONS,
 } from "@/lib/spending/dial-drift";
+import { getRequestUser } from "@/lib/auth/request-user";
 
 // "Where is the money going" — reflective view on calendar months
 // (ADR-0003; Pay Periods power the live heartbeat, not this page).
@@ -80,10 +80,7 @@ export default async function SpendingPage({
 }: {
   searchParams: Promise<{ month?: string }>;
 }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getRequestUser();
   if (!user) redirect("/auth/login");
 
   const params = await searchParams;

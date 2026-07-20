@@ -8,13 +8,13 @@
 import { revalidatePath } from "next/cache";
 import type { $Enums } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { createClient } from "@/lib/supabase/server";
 import {
   deriveMerchantPattern,
   matchesMerchantPattern,
   resolveCorrection,
   type CorrectionInput,
 } from "@/lib/categorization/corrections";
+import { getRequestUser } from "@/lib/auth/request-user";
 
 export interface CorrectionResult {
   ok?: boolean;
@@ -27,10 +27,7 @@ export async function correctTransaction(
   transactionId: string,
   input: CorrectionInput
 ): Promise<CorrectionResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getRequestUser();
   if (!user) return { error: "Not signed in." };
 
   const transaction = await prisma.feedTransaction.findFirst({

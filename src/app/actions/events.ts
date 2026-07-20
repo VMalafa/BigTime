@@ -15,9 +15,9 @@
 import { revalidatePath } from "next/cache";
 import type { Event } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { createClient } from "@/lib/supabase/server";
 import { normalizeEventTitle } from "@/lib/timeline/natural-key";
 import { isExtraAssignee, type ExtraAssignee } from "@/lib/timeline/assignee";
+import { getRequestUserId } from "@/lib/auth/request-user";
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -29,14 +29,6 @@ function parseDateOnly(value: string): Date | null {
   // Reject silently-rolled-over dates like 2026-02-31.
   if (date.toISOString().slice(0, 10) !== value) return null;
   return date;
-}
-
-async function getAuthedUserId(): Promise<string | null> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user?.id ?? null;
 }
 
 export interface CreateEventInput {
@@ -66,7 +58,7 @@ export type EventResult =
 export async function createEvent(
   input: CreateEventInput
 ): Promise<EventResult> {
-  const userId = await getAuthedUserId();
+  const userId = await getRequestUserId();
   if (!userId) return { error: "Not signed in." };
 
   const source = await prisma.calendarSource.findFirst({
@@ -119,7 +111,7 @@ export async function updateEvent(
   eventId: string,
   patch: UpdateEventInput
 ): Promise<EventResult> {
-  const userId = await getAuthedUserId();
+  const userId = await getRequestUserId();
   if (!userId) return { error: "Not signed in." };
 
   const existing = await prisma.event.findFirst({
@@ -200,7 +192,7 @@ export async function assignEventPerson(
   eventId: string,
   assignee: AssignEventPersonInput
 ): Promise<{ ok?: boolean; error?: string }> {
-  const userId = await getAuthedUserId();
+  const userId = await getRequestUserId();
   if (!userId) return { error: "Not signed in." };
 
   const existing = await prisma.event.findFirst({
@@ -239,7 +231,7 @@ export async function assignEventPerson(
 export async function dismissEvent(
   eventId: string
 ): Promise<{ ok?: boolean; error?: string }> {
-  const userId = await getAuthedUserId();
+  const userId = await getRequestUserId();
   if (!userId) return { error: "Not signed in." };
 
   const updated = await prisma.event.updateMany({
@@ -259,7 +251,7 @@ export async function dismissEvent(
 export async function markRenewalHandled(
   eventId: string
 ): Promise<{ ok?: boolean; error?: string }> {
-  const userId = await getAuthedUserId();
+  const userId = await getRequestUserId();
   if (!userId) return { error: "Not signed in." };
 
   const updated = await prisma.event.updateMany({
@@ -280,7 +272,7 @@ export async function markRenewalHandled(
 export async function confirmEvents(
   eventIds: string[]
 ): Promise<{ ok?: boolean; confirmed?: number; error?: string }> {
-  const userId = await getAuthedUserId();
+  const userId = await getRequestUserId();
   if (!userId) return { error: "Not signed in." };
   if (eventIds.length === 0) return { error: "No events to confirm." };
 

@@ -1,11 +1,11 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { createClient } from "@/lib/supabase/server";
 import {
   CalendarIngestion,
   type SerializedSource,
 } from "@/components/timeline/CalendarIngestion";
 import { raiseFeedRenewalDrafts } from "@/lib/renewals/raise";
+import { getRequestUser } from "@/lib/auth/request-user";
 
 // Calendar ingestion & review (#55): the deterministic paths into the
 // Household Timeline — ICS import with tiered ratification, and manual
@@ -13,10 +13,7 @@ import { raiseFeedRenewalDrafts } from "@/lib/renewals/raise";
 // is #56's.
 
 export default async function CalendarPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getRequestUser();
   if (!user) redirect("/auth/login");
 
   // Renewal radar (#70): feed-derived drafts refresh whenever the review
