@@ -1,9 +1,21 @@
 import { NextResponse } from "next/server";
+import { getRequestUser } from "@/lib/auth/request-user";
 import { generateAIResponse } from "@/lib/ai/client";
 import { MONTHLY_CHECKIN_PROMPT } from "@/lib/ai/prompts";
 import type { MonthlyCheckInRequest } from "@/lib/ai/types";
 
 export async function POST(request: Request) {
+  // Authenticated households only (#109): these routes spend the
+  // household's Anthropic budget — anonymous visitors get a 401, never
+  // a completion.
+  const user = await getRequestUser();
+  if (!user) {
+    return NextResponse.json(
+      { content: "", error: "Not signed in." },
+      { status: 401 }
+    );
+  }
+
   try {
     const data: MonthlyCheckInRequest = await request.json();
 
