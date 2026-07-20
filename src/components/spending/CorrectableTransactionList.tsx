@@ -150,7 +150,7 @@ export function CorrectableTransactionList({ rows }: { rows: CorrectableRow[] })
             {openId === row.id && (
               <div className="mt-2 rounded-md border border-bg-secondary bg-bg-primary p-3 space-y-2.5">
                 <p className="text-xs font-sans text-text-secondary">
-                  Recategorize — this becomes a standing rule for this
+                  Correct this — it becomes a standing rule for this
                   merchant.
                 </p>
                 <div className="flex flex-wrap gap-1.5">
