@@ -3,13 +3,13 @@
 // Server-authoritative income & bonus (#49; cache home per #53): reads
 // hydrate from getIncomeData into a shared in-memory cache (one source for
 // the flow income page AND the dashboard income page); every mutation is an
-// awaited per-intent server action with optimistic UI + rollback, per the
-// Corrections-panel pattern. No zustand, no localStorage.
+// awaited per-intent server action with optimistic UI + rollback via the
+// shared runOptimistic shape (#109). No zustand, no localStorage.
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/hooks/useAuth";
 import type { BonusEntry, IncomeEntry } from "@/lib/store/flow-store";
-import { createEntityCache } from "@/lib/hooks/entity-cache";
+import { createEntityCache, runOptimistic } from "@/lib/hooks/entity-cache";
 import {
   addIncomeSource,
   getIncomeData,
@@ -18,7 +18,7 @@ import {
 } from "@/app/actions/income";
 import { generateId } from "@/lib/utils/validation";
 
-interface IncomeState {
+export interface IncomeState {
   incomeSources: IncomeEntry[];
   bonusItems: BonusEntry[];
 }
@@ -40,45 +40,45 @@ export function useIncomeData() {
     void incomeCache.hydrate(getIncomeData);
   }, [isAuthenticated, loading]);
 
-  async function addIncome(input: IncomeSourceInput): Promise<boolean> {
+  function addIncome(input: IncomeSourceInput): Promise<boolean> {
     setError(null);
-    const previous = incomeCache.get();
     const tempId = generateId();
-    incomeCache.set((s) => ({
-      ...s,
-      incomeSources: [...s.incomeSources, { id: tempId, ...input }],
-    }));
-
-    const result = await addIncomeSource(input);
-    if ("error" in result) {
-      incomeCache.set(previous);
-      setError(result.error);
-      return false;
-    }
-    incomeCache.set((s) => ({
-      ...s,
-      incomeSources: s.incomeSources.map((i) =>
-        i.id === tempId ? result.incomeSource : i
-      ),
-    }));
-    return true;
+    return runOptimistic<IncomeState, IncomeEntry>({
+      cache: incomeCache,
+      optimistic: (s) => ({
+        ...s,
+        incomeSources: [...s.incomeSources, { id: tempId, ...input }],
+      }),
+      action: async () => {
+        const result = await addIncomeSource(input);
+        return "error" in result
+          ? { error: result.error }
+          : { value: result.incomeSource };
+      },
+      confirm: (s, created) => ({
+        ...s,
+        incomeSources: s.incomeSources.map((i) =>
+          i.id === tempId ? created : i
+        ),
+      }),
+      onError: setError,
+    });
   }
 
-  async function removeIncome(id: string): Promise<boolean> {
+  function removeIncome(id: string): Promise<boolean> {
     setError(null);
-    const previous = incomeCache.get();
-    incomeCache.set((s) => ({
-      ...s,
-      incomeSources: s.incomeSources.filter((i) => i.id !== id),
-    }));
-
-    const result = await removeIncomeSource(id);
-    if (result.error) {
-      incomeCache.set(previous);
-      setError(result.error);
-      return false;
-    }
-    return true;
+    return runOptimistic<IncomeState, void>({
+      cache: incomeCache,
+      optimistic: (s) => ({
+        ...s,
+        incomeSources: s.incomeSources.filter((i) => i.id !== id),
+      }),
+      action: async () => {
+        const result = await removeIncomeSource(id);
+        return result.error ? { error: result.error } : { value: undefined };
+      },
+      onError: setError,
+    });
   }
 
   const totalMonthlyIncome = incomeSources.reduce(

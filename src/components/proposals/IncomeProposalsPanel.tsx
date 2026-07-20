@@ -5,9 +5,11 @@ import {
   confirmIncomeProposal,
   dismissProposal,
   getFlowProposals,
+  type ConfirmedIncomeSource,
 } from "@/app/actions/proposals";
 import type { IncomeProposal } from "@/lib/proposals/proposals";
-import { incomeCache } from "@/lib/hooks/useIncomeData";
+import { incomeCache, type IncomeState } from "@/lib/hooks/useIncomeData";
+import { runOptimistic } from "@/lib/hooks/entity-cache";
 import { formatCurrency } from "@/lib/utils/format";
 import { Button } from "@/components/ui/Button";
 
@@ -28,6 +30,7 @@ const CADENCE_LABELS: Record<string, string> = {
 export function IncomeProposalsPanel() {
   const [proposals, setProposals] = useState<IncomeProposal[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
   useEffect(() => {
@@ -35,49 +38,66 @@ export function IncomeProposalsPanel() {
       .then((result) => {
         if (result.linked) setProposals(result.income);
       })
-      .catch(() => {});
+      // Honesty Rule (#109): a failed Proposal load says so instead of
+      // silently rendering nothing.
+      .catch(() =>
+        setLoadError(
+          "Couldn't check your linked accounts for income — reload to try again."
+        )
+      );
   }, []);
 
-  if (proposals.length === 0) return null;
+  if (proposals.length === 0) {
+    return loadError ? (
+      <p role="alert" className="text-xs font-sans text-warning">
+        {loadError}
+      </p>
+    ) : null;
+  }
 
   function handleConfirm(proposal: IncomeProposal) {
     setError(null);
     // Optimistic: the card leaves and the income appears immediately; the
     // awaited action (#49) writes the IncomeSource row server-side, and a
-    // failure rolls both back.
+    // failure rolls both back (the shared runOptimistic shape, #109).
     setProposals((prev) =>
       prev.filter((p) => p.merchantPattern !== proposal.merchantPattern)
     );
-    const previousIncome = incomeCache.get();
     const tempId = `pending-${proposal.merchantPattern}`;
-    incomeCache.set((s) => ({
-      ...s,
-      incomeSources: [
-        ...s.incomeSources,
-        {
-          id: tempId,
-          name: proposal.name,
-          monthlyAmount: proposal.monthlyAmountCents / 100,
-          isAfterTax: true,
-        },
-      ],
-    }));
     startTransition(async () => {
-      const result = await confirmIncomeProposal(proposal.merchantPattern);
-      if (result.error || !result.incomeSource) {
-        incomeCache.set(previousIncome);
-        setProposals((prev) => [...prev, proposal]);
-        setError(result.error ?? "Could not confirm income. Try again.");
-        return;
-      }
-      const confirmed = result.incomeSource;
-      // Swap the optimistic row for the stable server row.
-      incomeCache.set((s) => ({
-        ...s,
-        incomeSources: s.incomeSources.map((i) =>
-          i.id === tempId ? confirmed : i
-        ),
-      }));
+      await runOptimistic<IncomeState, ConfirmedIncomeSource>({
+        cache: incomeCache,
+        optimistic: (s) => ({
+          ...s,
+          incomeSources: [
+            ...s.incomeSources,
+            {
+              id: tempId,
+              name: proposal.name,
+              monthlyAmount: proposal.monthlyAmountCents / 100,
+              isAfterTax: true,
+            },
+          ],
+        }),
+        action: async () => {
+          const result = await confirmIncomeProposal(proposal.merchantPattern);
+          const confirmed = result.incomeSource;
+          return result.error || !confirmed
+            ? { error: result.error ?? "Could not confirm income. Try again." }
+            : { value: confirmed };
+        },
+        // Swap the optimistic row for the stable server row.
+        confirm: (s, confirmed) => ({
+          ...s,
+          incomeSources: s.incomeSources.map((i) =>
+            i.id === tempId ? confirmed : i
+          ),
+        }),
+        onError: (message) => {
+          setProposals((prev) => [...prev, proposal]);
+          setError(message);
+        },
+      });
     });
   }
 

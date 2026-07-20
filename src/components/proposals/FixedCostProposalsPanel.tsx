@@ -9,6 +9,7 @@ import {
 import type { FixedCostProposal } from "@/lib/proposals/proposals";
 import { FIXED_COST_CATEGORIES } from "@/lib/constants/csp-ranges";
 import { planCache } from "@/lib/hooks/useSpendingPlan";
+import { runOptimistic } from "@/lib/hooks/entity-cache";
 import { generateId } from "@/lib/utils/validation";
 import { formatCurrency } from "@/lib/utils/format";
 import { Button } from "@/components/ui/Button";
@@ -53,6 +54,7 @@ export function FixedCostProposalsPanel() {
   const [individual, setIndividual] = useState<FixedCostProposal[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
   useEffect(() => {
@@ -64,11 +66,22 @@ export function FixedCostProposalsPanel() {
         }
         setLoaded(true);
       })
-      .catch(() => setLoaded(true));
+      // Honesty Rule (#109): a failed Proposal load says so instead of
+      // silently rendering nothing.
+      .catch(() => {
+        setLoadError(
+          "Couldn't check your linked accounts for fixed costs — reload to try again."
+        );
+        setLoaded(true);
+      });
   }, []);
 
   if (!loaded || (confirmAll.length === 0 && individual.length === 0)) {
-    return null;
+    return loaded && loadError ? (
+      <p role="alert" className="text-xs font-sans text-warning">
+        {loadError}
+      </p>
+    ) : null;
   }
 
   function addToPlan(
@@ -76,43 +89,50 @@ export function FixedCostProposalsPanel() {
     restoreCards: () => void
   ) {
     setError(null);
-    const previousPlan = planCache.get();
-    planCache.set((plan) => {
-      const base = plan ?? {
-        fixedCostsPercent: 0,
-        savingsPercent: 0,
-        investmentsPercent: 0,
-        guiltFreePercent: 0,
-        fixedCostsOverridden: false,
-        fixedCostLineItems: [],
-      };
-      return {
-        ...base,
-        fixedCostLineItems: [
-          ...base.fixedCostLineItems,
-          ...proposals.map((proposal, index) => ({
-            id: generateId(),
-            category: proposal.fixedCostCategory as never,
-            name: proposal.name,
-            monthlyAmount: proposal.monthlyAmountCents / 100,
-            note: "From your linked accounts",
-            sortOrder: lineItemCount + index,
-          })),
-        ],
-      };
-    });
     startTransition(async () => {
-      const result = await confirmFixedCostProposals(
-        proposals.map((p) => p.merchantPattern)
-      );
-      if (result.error) {
-        planCache.set(previousPlan);
-        restoreCards();
-        setError(result.error);
-        return;
-      }
-      // Swap the optimistic rows for the server plan — stable ids.
-      if (result.plan) planCache.set(result.plan);
+      // The shared runOptimistic shape (#109): optimistic rows in, rolled
+      // back on failure, swapped for the server plan on success.
+      await runOptimistic({
+        cache: planCache,
+        optimistic: (plan) => {
+          const base = plan ?? {
+            fixedCostsPercent: 0,
+            savingsPercent: 0,
+            investmentsPercent: 0,
+            guiltFreePercent: 0,
+            fixedCostsOverridden: false,
+            fixedCostLineItems: [],
+          };
+          return {
+            ...base,
+            fixedCostLineItems: [
+              ...base.fixedCostLineItems,
+              ...proposals.map((proposal, index) => ({
+                id: generateId(),
+                category: proposal.fixedCostCategory as never,
+                name: proposal.name,
+                monthlyAmount: proposal.monthlyAmountCents / 100,
+                note: "From your linked accounts",
+                sortOrder: lineItemCount + index,
+              })),
+            ],
+          };
+        },
+        action: async () => {
+          const result = await confirmFixedCostProposals(
+            proposals.map((p) => p.merchantPattern)
+          );
+          return result.error
+            ? { error: result.error }
+            : { value: result.plan ?? null };
+        },
+        // Swap the optimistic rows for the server plan — stable ids.
+        confirm: (plan, serverPlan) => serverPlan ?? plan,
+        onError: (message) => {
+          restoreCards();
+          setError(message);
+        },
+      });
     });
   }
 

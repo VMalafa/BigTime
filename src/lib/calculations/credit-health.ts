@@ -1,14 +1,9 @@
 import { CREDIT_TIPS } from "@/lib/constants/credit-tips";
+// One debt-input shape for the calculations library (#109): defined in
+// debt-payoff, re-exported here so existing import sites keep working.
+import type { DebtInput } from "@/lib/calculations/debt-payoff";
 
-export interface DebtInput {
-  id: string;
-  name: string;
-  balance: number;
-  apr: number;
-  minimumPayment: number;
-  debtType: string;
-  creditLimit?: number;
-}
+export type { DebtInput };
 
 export interface CreditHealthResult {
   aggregateUtilization: number;

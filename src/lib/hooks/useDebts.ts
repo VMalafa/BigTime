@@ -3,13 +3,13 @@
 // Server-authoritative debts (#51; cache home per #53): reads hydrate from
 // getDebtsData into a shared in-memory cache (one source for the flow debts
 // page AND the dashboard debts page); every mutation is an awaited
-// per-intent action with optimistic UI + rollback. No zustand, no
-// localStorage.
+// per-intent action with optimistic UI + rollback via the shared
+// runOptimistic shape (#109). No zustand, no localStorage.
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/hooks/useAuth";
 import type { DebtEntry } from "@/lib/store/flow-store";
-import { createEntityCache } from "@/lib/hooks/entity-cache";
+import { createEntityCache, runOptimistic } from "@/lib/hooks/entity-cache";
 import {
   addDebt as addDebtAction,
   getDebtsData,
@@ -19,7 +19,7 @@ import {
 } from "@/app/actions/debts";
 import { generateId } from "@/lib/utils/validation";
 
-interface DebtsState {
+export interface DebtsState {
   debts: DebtEntry[];
   mappedIds: string[];
 }
@@ -53,69 +53,65 @@ export function useDebts() {
     void refresh();
   }, [isAuthenticated, loading]);
 
-  async function addDebt(input: DebtInput): Promise<boolean> {
+  function addDebt(input: DebtInput): Promise<boolean> {
     setError(null);
-    const previous = debtsCache.get();
     const tempId = generateId();
-    debtsCache.set((s) => ({
-      ...s,
-      debts: [...s.debts, { id: tempId, ...input }],
-    }));
-
-    const result = await addDebtAction(input);
-    if ("error" in result) {
-      debtsCache.set(previous);
-      setError(result.error);
-      return false;
-    }
-    const created = result.debt;
-    debtsCache.set((s) => ({
-      ...s,
-      debts: s.debts.map((d) => (d.id === tempId ? created : d)),
-    }));
-    return true;
+    return runOptimistic<DebtsState, DebtEntry>({
+      cache: debtsCache,
+      optimistic: (s) => ({
+        ...s,
+        debts: [...s.debts, { id: tempId, ...input }],
+      }),
+      action: async () => {
+        const result = await addDebtAction(input);
+        return "error" in result
+          ? { error: result.error }
+          : { value: result.debt };
+      },
+      confirm: (s, created) => ({
+        ...s,
+        debts: s.debts.map((d) => (d.id === tempId ? created : d)),
+      }),
+      onError: setError,
+    });
   }
 
-  async function updateDebt(
-    id: string,
-    patch: Partial<DebtInput>
-  ): Promise<boolean> {
+  function updateDebt(id: string, patch: Partial<DebtInput>): Promise<boolean> {
     setError(null);
-    const previous = debtsCache.get();
-    debtsCache.set((s) => ({
-      ...s,
-      debts: s.debts.map((d) => (d.id === id ? { ...d, ...patch } : d)),
-    }));
-
-    const result = await updateDebtAction(id, patch);
-    if ("error" in result) {
-      debtsCache.set(previous);
-      setError(result.error);
-      return false;
-    }
-    const updated = result.debt;
-    debtsCache.set((s) => ({
-      ...s,
-      debts: s.debts.map((d) => (d.id === id ? updated : d)),
-    }));
-    return true;
+    return runOptimistic<DebtsState, DebtEntry>({
+      cache: debtsCache,
+      optimistic: (s) => ({
+        ...s,
+        debts: s.debts.map((d) => (d.id === id ? { ...d, ...patch } : d)),
+      }),
+      action: async () => {
+        const result = await updateDebtAction(id, patch);
+        return "error" in result
+          ? { error: result.error }
+          : { value: result.debt };
+      },
+      confirm: (s, updated) => ({
+        ...s,
+        debts: s.debts.map((d) => (d.id === id ? updated : d)),
+      }),
+      onError: setError,
+    });
   }
 
-  async function removeDebt(id: string): Promise<boolean> {
+  function removeDebt(id: string): Promise<boolean> {
     setError(null);
-    const previous = debtsCache.get();
-    debtsCache.set((s) => ({
-      ...s,
-      debts: s.debts.filter((d) => d.id !== id),
-    }));
-
-    const result = await removeDebtAction(id);
-    if (result.error) {
-      debtsCache.set(previous);
-      setError(result.error);
-      return false;
-    }
-    return true;
+    return runOptimistic<DebtsState, void>({
+      cache: debtsCache,
+      optimistic: (s) => ({
+        ...s,
+        debts: s.debts.filter((d) => d.id !== id),
+      }),
+      action: async () => {
+        const result = await removeDebtAction(id);
+        return result.error ? { error: result.error } : { value: undefined };
+      },
+      onError: setError,
+    });
   }
 
   return {

@@ -22,6 +22,7 @@ export function DebtProposalsPanel() {
   const [proposals, setProposals] = useState<DebtProposal[]>([]);
   const [drafts, setDrafts] = useState<Record<string, { apr: string; minimum: string }>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
   useEffect(() => {
@@ -29,10 +30,22 @@ export function DebtProposalsPanel() {
       .then((result) => {
         if (result.linked) setProposals(result.debts);
       })
-      .catch(() => {});
+      // Honesty Rule (#109): a failed Proposal load says so instead of
+      // silently rendering nothing.
+      .catch(() =>
+        setLoadError(
+          "Couldn't check your linked accounts for debts — reload to try again."
+        )
+      );
   }, []);
 
-  if (proposals.length === 0) return null;
+  if (proposals.length === 0) {
+    return loadError ? (
+      <p role="alert" className="text-xs font-sans text-warning">
+        {loadError}
+      </p>
+    ) : null;
+  }
 
   function draftFor(id: string) {
     return drafts[id] ?? { apr: "", minimum: "" };

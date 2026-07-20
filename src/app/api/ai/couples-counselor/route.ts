@@ -59,6 +59,10 @@ ${data.moneyRules?.length ? `- Money Rules:\n${data.moneyRules.map((r) => `  •
     );
     return NextResponse.json({ content });
   } catch (error) {
+    // Diagnosable failures (#109): log with context before the generic 500.
+    console.error("[ai/couples-counselor] request failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { content: "", error: "Failed to generate counselor response" },
       { status: 500 }
