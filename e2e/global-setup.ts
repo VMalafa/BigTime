@@ -237,7 +237,10 @@ export default async function globalSetup() {
       { id: "e2e-spending-t1", accountId: CHECKING_ID, externalId: "e2e-t1", postedAt: day(2), amount: 6000, description: "ACME CORP PAYROLL", cspBucket: "UNCATEGORIZED" as const, isTransfer: false, transferPairId: null },
       { id: "e2e-spending-t2", accountId: CHECKING_ID, externalId: "e2e-t2", postedAt: day(3), amount: -1800, description: "OAKWOOD APARTMENTS RENT", cspBucket: "FIXED_COSTS" as const, fixedCostCategory: "HOUSING" as const, isTransfer: false, transferPairId: null },
       { id: "e2e-spending-t3", accountId: CHECKING_ID, externalId: "e2e-t3", postedAt: day(4), amount: -500, description: "AUTO SAVE TO ALLY SAVINGS", cspBucket: "SAVINGS" as const, isTransfer: false, transferPairId: null },
-      { id: "e2e-spending-t4", accountId: CHECKING_ID, externalId: "e2e-t4", postedAt: day(5), amount: -300, description: "VANGUARD BROKERAGE", cspBucket: "INVESTMENTS" as const, isTransfer: false, transferPairId: null },
+      // t4's ACH-blob description is deliberately long: it is the tripwire
+      // for the mobile horizontal-overflow regression test (a nowrap
+      // description this wide once forced the whole page past the viewport).
+      { id: "e2e-spending-t4", accountId: CHECKING_ID, externalId: "e2e-t4", postedAt: day(5), amount: -300, description: "VANGUARD BROKERAGE DES:INVESTMENT ID:XXXXX12345 INDN:MALAFA VAN CO ID:XXXXX99999 CCD ELECTRONIC TRANSACTION POSTING SEQ 00003", cspBucket: "INVESTMENTS" as const, isTransfer: false, transferPairId: null },
       { id: "e2e-spending-t5", accountId: CHECKING_ID, externalId: "e2e-t5", postedAt: day(6), amount: -120, description: "SUSHI GARDEN", cspBucket: "GUILT_FREE" as const, moneyDial: "FOOD_DINING" as const, isTransfer: false, transferPairId: null },
       { id: "e2e-spending-t6", accountId: CHECKING_ID, externalId: "e2e-t6", postedAt: day(7), amount: -400, description: "E2E PAYMENT TO CARD", cspBucket: "UNCATEGORIZED" as const, isTransfer: true, transferPairId: "e2e-spending-t7" },
       { id: "e2e-spending-t7", accountId: CARD_ID, externalId: "e2e-t7", postedAt: day(8), amount: 400, description: "E2E PAYMENT RECEIVED", cspBucket: "UNCATEGORIZED" as const, isTransfer: true, transferPairId: "e2e-spending-t6" },

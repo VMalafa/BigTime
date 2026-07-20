@@ -112,6 +112,38 @@ test("spending page: plan vs actual, honest chip, Transfers excluded", async ({
   await expect(page.getByText("not yet categorized")).toHaveCount(0);
 });
 
+test.describe("phone viewport", () => {
+  test.use({ viewport: { width: 375, height: 812 } });
+
+  // Regression: main.flex-1 without min-w-0 let the seeded ACH-blob
+  // description (t4, whitespace-nowrap via `truncate`) propagate its
+  // single-line width up as min-content — the whole page laid out at
+  // ~900px on a phone and nothing wrapped.
+  test("spending page has no horizontal overflow", async ({ page }) => {
+    await page.goto("/auth/login");
+    await page.getByLabel("Email").fill(E2E_SPENDING_EMAIL);
+    await page.getByLabel("Password").fill(e2eSpendingPassword());
+    await page.getByRole("button", { name: "Sign In", exact: true }).click();
+    await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 });
+
+    await page.goto("/dashboard/spending");
+    await expect(
+      page.getByRole("heading", { name: "Spending", exact: true })
+    ).toBeVisible();
+    // The long-description row must actually be on the page for this
+    // assertion to mean anything.
+    await expect(
+      page.getByText("VANGUARD BROKERAGE DES:INVESTMENT").first()
+    ).toBeVisible();
+
+    const widths = await page.evaluate(() => ({
+      scrollWidth: document.scrollingElement!.scrollWidth,
+      clientWidth: document.scrollingElement!.clientWidth,
+    }));
+    expect(widths.scrollWidth).toBeLessThanOrEqual(widths.clientWidth);
+  });
+});
+
 test("linked path: confidence-tiered Proposals on fixed-costs and debts steps", async ({
   page,
 }) => {
